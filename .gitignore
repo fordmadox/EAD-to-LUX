@@ -1,0 +1,9 @@
+.DS_Store
+*.log
+*.json
+ead*/
+ArchivesSpace-JSON*/
+_pycache_
+secrets.py
+saxon/
+jing/
