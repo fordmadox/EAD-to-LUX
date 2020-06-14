@@ -20,8 +20,6 @@
 
         finish usage rights
 
-        add daos  (consider grabbing extra stuff from LB during transformating time???)
-
         include acquisition dates ???
 
         add onsite/offsite locations
@@ -31,10 +29,9 @@
     -->
     <!--
         questions:
-            1) anyone else adding HTML in their values?
-            2) multiple supertype 1s?
-            3) collection_in_repository:  currently mapping stuff here...  what are the mappings for this from Voyager?
-            4) access_in_repository:  what are folks using?
+            1) multiple supertype 1s?
+            2) collection_in_repository:  currently mapping stuff here...  what are the mappings for this from Voyager?
+            3) access_in_repository:  what are folks using?
     -->
 
 
@@ -494,18 +491,25 @@
                         <xsl:value-of select="$repository-name"/>
                     </j:string>
 
-                    <!-- could do something here about on-site vs. off-site. -->
+                    <!-- could do something here about on-site vs. off-site, but need guidance on this. ditto for a lot of stuff here. -->
                     <j:string key="access_in_repository"/>
 
                     <j:array key="access_in_repository_URI">
                         <j:string>
                             <xsl:value-of select="$base-url || $aspace-id"/>
                         </j:string>
+                        <!-- need to add dao links here, but how do these get differntiated by LUX ? -->
+                        <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][not(@show='embed')] | ead3:did/ead3:dao[@href][not(@show='embed')]"/>
                     </j:array>
 
-                    <j:string key="access_contact_in_repository"/>
+                    <j:string key="access_contact_in_repository">
+                        <xsl:apply-templates select="ead3:did" mode="access_notes"/>
+                    </j:string>
 
-                    <j:array key="access_to_image_URI"/>
+                    <!-- can add a single thumbnail here now, but there will be issues with re-associating multiple digital objects + what happens if we can supply all of the thumbnails to LUX? -->
+                    <j:array key="access_to_image_URI">
+                        <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][@show='embed'] | ead3:did/ead3:dao[@href][@show='embed']"/>
+                    </j:array>
                 </j:map>
             </j:array>
 
@@ -518,11 +522,12 @@
                     <j:string key="rights">
                         <xsl:value-of select="ead3:accessrestrict/@localtype"/>
                     </j:string>
-                    <j:array key="rights_notes">
-                        <j:string>
-                            <xsl:apply-templates select="ead3:did" mode="rights_notes"/>
-                        </j:string>
-                    </j:array>
+
+                    <!-- this is difficult to untangle, since we have access vs. use notes.  will likely need to consult with staff and come up with mapping logic-->
+                    <j:array key="rights_notes"/>
+
+                    <!-- again, not something we currently track, so i think the best we could do for now would be a generic page for each repo?.
+                        but, if we did track it, there's a place to do that in ASpace -->
                     <j:array key="rights_URI">
                         <j:string>
                             <xsl:value-of select="if ($repo-code = 'beinecke')
@@ -647,8 +652,8 @@
     </xsl:template>
 
     <!-- would it be better to create a variable with the notes?? -->
-    <xsl:template match="ead3:did" mode="rights_notes">
-        <xsl:call-template name="rights_notes">
+    <xsl:template match="ead3:did" mode="access_notes">
+        <xsl:call-template name="access_notes">
             <xsl:with-param name="repo-code" select="$repo-code"/>
             <xsl:with-param name="collection-URI" select="$collection-URI"/>
         </xsl:call-template>
@@ -1033,6 +1038,12 @@
                     <xsl:value-of select="map:get($ypm_sub_collections, $curatorial-code)"/>
                 </xsl:when>
             </xsl:choose>
+        </j:string>
+    </xsl:template>
+
+    <xsl:template match="ead3:dao[@href]">
+        <j:string>
+            <xsl:value-of select="@href"/>
         </j:string>
     </xsl:template>
 
