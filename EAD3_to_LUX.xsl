@@ -480,12 +480,19 @@
             <!-- locations -->
             <j:array key="locations">
                 <j:map>
+                    <!-- hopefully we can change the names when the JSON schema is revised -->
                     <j:string key="repository">
-                        <xsl:value-of select="$repository-name"/>
+                        <xsl:value-of select="if ($repo-code eq 'ypm') then 'Yale Peabody Museum of Natural History'
+                            else if ($repo-code eq 'ycba') then 'Yale Center for British Art'
+                            else 'Yale Library'"/>
                     </j:string>
-                    <!-- need further discusions about what to supply here.. is it something like JWJ? -->
 
                     <xsl:call-template name="collection_in_repository"/>
+
+                    <!-- still valid, so why not? -->
+                    <j:string key="holding_institution">
+                        <xsl:value-of select="$repository-name"/>
+                    </j:string>
 
                     <!-- could do something here about on-site vs. off-site. -->
                     <j:string key="access_in_repository"/>
