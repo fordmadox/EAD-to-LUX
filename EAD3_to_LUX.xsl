@@ -87,7 +87,7 @@
     <xsl:function name="mdc:first-four-characters" as="xs:string?">
         <xsl:param name="input"/>
         <!-- hopefully we can just use dates and this won't be needed, but let's try this out, and update if it's not robust enough not to throw errors :) -->
-        <xsl:value-of select="normalize-space($input) => substring(1, 4)"/>
+        <xsl:value-of select="xs:string($input) => normalize-space() => substring(1, 4)"/>
     </xsl:function>
     <!-- 1) global parameters and variables -->
     <!-- 
