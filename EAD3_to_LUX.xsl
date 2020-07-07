@@ -17,18 +17,10 @@
     
     <!-- to do:
         fix how the HTML conversion is handled.  no need to do silly text stuff. 
-        
-        change system IDs.  not full URL, but just:
-        
-            aspace-archival-objects-XXX
-            aspace-resource-XXX
-            
-            let folks know that "aspace-" will be supplied, so no need to add that during ingest anymore.
-            
+                
         change earliest and latest dates to YYYY.  currently can be YYYY-MM-DD.
             done, with hacky "first-four-characters" function, but let's argue to move this value up a level and to change the datatype to a date, rather than a string.
-        
-        add modification datetime
+            changed, but keeping this note around in hopes we can change things back.
         
         finish usage rights
         
@@ -167,6 +159,10 @@
     <!-- consider changing to archdesc/did/repository, since the corpname element could actually have an @identifier attribute available there.  the publisher element, on the other hand, could only have an id attribute.-->
     <xsl:variable name="repository-name" select="ead3:ead/ead3:control/ead3:filedesc/ead3:publicationstmt/ead3:publisher[1]/normalize-space()"/>
     
+    <!-- only 1 for the entire collection right now, but could add the archival object timestamps if needed if we add to the EAD3 exports -->
+    <xsl:variable name="last-updated" select="ead3:ead/ead3:control/ead3:maintenancehistory/ead3:maintenanceevent[1]/ead3:eventdatetime[1]"/>
+    
+    
 
     <!-- 2) primary template section -->
     <xsl:template match="ead3:ead">
@@ -300,13 +296,18 @@
             <j:string key="$schema">
                 <xsl:value-of select="$json_schema_location"/>
             </j:string>
+            
+            <!-- sneaking in a modification time, even though not part of the schema yet -->
+            <j:string key="last_updated">
+                <xsl:value-of select="$last-updated"/>
+            </j:string>
                       
             <!-- identifiers -->
            <j:array key="identifiers">
                <j:map>
                    <!-- instead of full value, prefered to have "aspace-{record-type}-{NNN}" -->
                    <j:string key="identifier_value">
-                       <xsl:value-of select="'aspace-' || replace($aspace-id, '^/repositories/\d*/', '') => replace('/', '-')"/>
+                       <xsl:value-of select="'aspace-' || replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
                    </j:string>
                    <j:string key="identifier_display"/>
                    <j:string key="identifier_type">
@@ -497,21 +498,25 @@
             <j:array key="locations">
                 <j:map>
                     <!-- hopefully we can change the names when the JSON schema is revised -->
-                    <j:string key="repository">
-                        <xsl:value-of select="if ($repo-code eq 'ypm') then 'Yale Peabody Museum of Natural History' 
-                            else if ($repo-code eq 'ycba') then 'Yale Center for British Art'
-                            else 'Yale Library'"/>
-                    </j:string>
+                    <j:array key="repository">
+                        <j:string>
+                            <xsl:value-of select="if ($repo-code eq 'ypm') then 'Yale Peabody Museum of Natural History' 
+                                else if ($repo-code eq 'ycba') then 'Yale Center for British Art'
+                                else 'Yale Library'"/>
+                        </j:string>
+                    </j:array>
                     
                     <xsl:call-template name="collection_in_repository"/>
                     
-                    <!-- still valid, so why not? -->
-                    <j:string key="holding_institution">
-                        <xsl:value-of select="$repository-name"/>
-                    </j:string>
+                    <!-- still valid, so why not?.  keeping things aligned, i'm adding this to an array, even though our data source will always only produce one value -->
+                    <j:array key="holding_institution">
+                        <j:string>
+                            <xsl:value-of select="$repository-name"/>
+                        </j:string>
+                    </j:array>
                     
                     <!-- could do something here about on-site vs. off-site, but need guidance on this. ditto for a lot of stuff here. -->
-                    <j:string key="access_in_repository"/>
+                    <j:array key="access_in_repository"/>
                     
                     <j:array key="access_in_repository_URI">
                         <j:string>
@@ -521,9 +526,9 @@
                         <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][not(@show='embed')] | ead3:did/ead3:dao[@href][not(@show='embed')]"/>
                     </j:array>
                     
-                    <j:string key="access_contact_in_repository">
+                    <j:array key="access_contact_in_repository">
                         <xsl:apply-templates select="ead3:did" mode="access_notes"/>
-                    </j:string>
+                    </j:array>
                     
                     <!-- can add a single thumbnail here now, but there will be issues with re-associating multiple digital objects + what happens if we can supply all of the thumbnails to LUX? -->
                     <j:array key="access_to_image_URI">
@@ -538,9 +543,14 @@
                     <!-- this is a local access restriction type, not usage, but where else to map it?  
                         also, we don't use the rights module right now, so no way to specify things like public domain, etc. -->
                     <!-- so, we'll likely need to change these mappings once we have more guidance -->
-                    <j:string key="rights">
-                        <xsl:value-of select="ead3:accessrestrict/@localtype"/>
-                    </j:string>
+                    <j:array key="rights">
+                        <!-- now that this is an array, we can tokenize -->
+                        <xsl:for-each select="ead3:accessrestrict/tokenize(@localtype, ' ')">
+                            <j:string>
+                                <xsl:value-of select="."/>
+                            </j:string>
+                        </xsl:for-each>
+                    </j:array>
                     
                     <!-- this is difficult to untangle, since we have access vs. use notes.  will likely need to consult with staff and come up with mapping logic-->
                     <j:array key="rights_notes"/>
@@ -672,10 +682,13 @@
     
     <!-- would it be better to create a variable with the notes?? -->
     <xsl:template match="ead3:did" mode="access_notes">
-        <xsl:call-template name="access_notes">
-            <xsl:with-param name="repo-code" select="$repo-code"/>
-            <xsl:with-param name="collection-URI" select="$collection-URI"/>
-        </xsl:call-template>  
+        <!-- now an array.  we only have one note with this first pass, though, so i'm adding the string part here. -->
+        <j:string>
+            <xsl:call-template name="access_notes">
+                <xsl:with-param name="repo-code" select="$repo-code"/>
+                <xsl:with-param name="collection-URI" select="$collection-URI"/>
+            </xsl:call-template>  
+        </j:string>
     </xsl:template>
     
     <xsl:template match="ead3:unittitle">
@@ -1045,22 +1058,24 @@
     <!-- other named templates -->
     <xsl:template name="collection_in_repository">
         
-        <j:string key="collection_in_repository">
-            <xsl:choose>
-                <xsl:when test="$repo-code eq 'beinecke'">
-                    <xsl:value-of select="(map:get($beinecke_sub_collections, $curatorial-code), 'General Collection')[1]"/>
-                </xsl:when>
-                <xsl:when test="$repo-code eq 'mssa'">
-                    <xsl:value-of select="map:get($mssa_sub_collections, $curatorial-code)"/>
-                </xsl:when>
-                <xsl:when test="$repo-code eq 'arts'">
-                    <xsl:value-of select="map:get($arts_sub_collections, $curatorial-code)"/>
-                </xsl:when>
-                <xsl:when test="$repo-code eq 'ypm'">
-                    <xsl:value-of select="map:get($ypm_sub_collections, $curatorial-code)"/>
-                </xsl:when>
-            </xsl:choose>
-        </j:string>
+        <j:array key="collection_in_repository">
+            <j:string>
+                <xsl:choose>
+                    <xsl:when test="$repo-code eq 'beinecke'">
+                        <xsl:value-of select="(map:get($beinecke_sub_collections, $curatorial-code), 'General Collection')[1]"/>
+                    </xsl:when>
+                    <xsl:when test="$repo-code eq 'mssa'">
+                        <xsl:value-of select="map:get($mssa_sub_collections, $curatorial-code)"/>
+                    </xsl:when>
+                    <xsl:when test="$repo-code eq 'arts'">
+                        <xsl:value-of select="map:get($arts_sub_collections, $curatorial-code)"/>
+                    </xsl:when>
+                    <xsl:when test="$repo-code eq 'ypm'">
+                        <xsl:value-of select="map:get($ypm_sub_collections, $curatorial-code)"/>
+                    </xsl:when>
+                </xsl:choose>
+            </j:string>
+        </j:array>
     </xsl:template>
     
     <xsl:template match="ead3:dao[@href]">
