@@ -120,7 +120,7 @@
     <xsl:param name="newline" select="'&#xa;'"/>
         
     <!-- this determines whether we go into JSON Lines mode or not. -->
-    <xsl:param name="split-files" select="false()"/>
+    <xsl:param name="split-files" select="true()"/>
     <!-- this number determines the max number of lines in a JSON lines file.  we have a few collections with more than 10k, so we'll use that as a test case (we don't have any over 50k, though). -->
     <xsl:param name="split-at" as="xs:integer" select="10000"/>
     
