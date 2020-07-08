@@ -307,7 +307,7 @@
                <j:map>
                    <!-- instead of full value, prefered to have "aspace-{record-type}-{NNN}" -->
                    <j:string key="identifier_value">
-                       <xsl:value-of select="'aspace-' || replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
+                       <xsl:value-of select="replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
                    </j:string>
                    <j:string key="identifier_display"/>
                    <j:string key="identifier_type">
@@ -502,18 +502,16 @@
                         <j:string>
                             <xsl:value-of select="if ($repo-code eq 'ypm') then 'Yale Peabody Museum of Natural History' 
                                 else if ($repo-code eq 'ycba') then 'Yale Center for British Art'
-                                else 'Yale Library'"/>
+                                else 'Yale University Library'"/>
                         </j:string>
+                        <xsl:if test="not($repo-code = ('ypm', 'ycba'))">
+                            <j:string>
+                                <xsl:value-of select="$repository-name"/>
+                            </j:string>
+                        </xsl:if>
                     </j:array>
                     
                     <xsl:call-template name="collection_in_repository"/>
-                    
-                    <!-- still valid, so why not?.  keeping things aligned, i'm adding this to an array, even though our data source will always only produce one value -->
-                    <j:array key="holding_institution">
-                        <j:string>
-                            <xsl:value-of select="$repository-name"/>
-                        </j:string>
-                    </j:array>
                     
                     <!-- could do something here about on-site vs. off-site, but need guidance on this. ditto for a lot of stuff here. -->
                     <j:array key="access_in_repository"/>
@@ -764,7 +762,21 @@
                 </j:string>
             </j:array>
             <j:string key="agent_role_display">
-                <xsl:value-of select="key('relator-code', $relator, $cached-list-of-relators)/label"/>
+                <xsl:choose>
+                    <xsl:when test="$relator">
+                        <xsl:value-of select="key('relator-code', $relator, $cached-list-of-relators)/lower-case(label)"/>
+                    </xsl:when>
+                    <!-- should parameratize the Creator/Contributor so that they are configuration options, but just adding them as is for now -->
+                    <xsl:when test="lower-case(@label) eq 'source'">
+                        <xsl:value-of select="'source'"/>
+                    </xsl:when>
+                    <xsl:when test="(lower-case(@label) eq 'creator') and not(preceding-sibling::ead3:origination[lower-case(@label) eq 'creator'])">
+                        <xsl:value-of select="'creator'"/>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:value-of select="'contributor'"/>
+                    </xsl:otherwise>
+                </xsl:choose>     
             </j:string>
             <j:string key="agent_role_code">
                 <xsl:value-of select="$relator"/>
@@ -779,22 +791,22 @@
             <j:string key="agent_type_display">
                 <xsl:choose>
                     <xsl:when test="ead3:persname">
-                        <xsl:text>Person</xsl:text>
+                        <xsl:text>person</xsl:text>
                     </xsl:when>
                     <xsl:when test="ead3:corpname">
-                        <xsl:text>Organization</xsl:text>
+                        <xsl:text>organization</xsl:text>
                     </xsl:when>
                     <xsl:when test="ead3:famname">
-                        <xsl:text>Family</xsl:text>
+                        <xsl:text>family</xsl:text>
                     </xsl:when>
                     <xsl:otherwise>
                         <!-- in ASpace, it would default to Software, but let's say Unknown for now since it would likely be  mistake if indicated as such -->
-                        <xsl:text>Unknown</xsl:text>
+                        <xsl:text>unknown</xsl:text>
                     </xsl:otherwise>
                 </xsl:choose>
                 <!-- nowhere to distinguish between creators and sources...  do that this way? -->
-                <xsl:value-of select="if (@label = 'Creator') then ' (Creator of materials)'
-                    else if (@label = 'Source') then ' (Source of materials)'
+                <xsl:value-of select="if (@label = 'Creator') then ' (creator of materials)'
+                    else if (@label = 'Source') then ' (source of materials)'
                     else ''"/>
                 <!-- or just filter out sources from LUX? -->
             </j:string>
