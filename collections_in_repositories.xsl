@@ -5,23 +5,22 @@
     version="3.0">
 
     <xsl:variable name="arts_sub_collections" select="map{
-        'VRC': 'Visual Resources Collections'
+        'VRC': 'Visual Resources Collection'
         }"/>
     
     <xsl:variable name="beinecke_sub_collections" select="map{
-        'GEN': 'General Collection',
         'JWJ': 'James Weldon Johnson Memorial Collection',
         'OSB': 'James Marshall and Marie-Louise Osborn Collection',
         'OSBORN': 'James Marshall and Marie-Louise Osborn Collection',
         'WA': 'Yale Collection of Western Americana',
         'YCAL': 'Yale Collection of American Literature',
         'YCGL': 'Yale Collection of German Literature',
-        (: remove once beinecke.livingtheatre is finsihed :)
+        (: remove once beinecke.livingtheatre is finished :)
         'Multiple': 'Yale Collection of American Literature'
         }"/>
     
     <xsl:variable name="mssa_sub_collections" select="map{
-        'RU': 'Yale University Archives'
+        'RU': 'University Archives'
         }"/>
       
     <xsl:variable name="ypm_sub_collections" select="map{

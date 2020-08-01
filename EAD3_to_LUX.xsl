@@ -17,10 +17,6 @@
     
     <!-- to do:
         fix how the HTML conversion is handled.  no need to do silly text stuff. 
-                
-        change earliest and latest dates to YYYY.  currently can be YYYY-MM-DD.
-            done, with hacky "first-four-characters" function, but let's argue to move this value up a level and to change the datatype to a date, rather than a string.
-            changed, but keeping this note around in hopes we can change things back.
         
         finish usage rights
         
@@ -76,16 +72,13 @@
         
     </xsl:function>
 
-    <xsl:function name="mdc:first-four-characters" as="xs:string?">
-        <xsl:param name="input"/>
-        <!-- hopefully we can just use dates and this won't be needed, but let's try this out, and update if it's not robust enough not to throw errors :) -->
-        <xsl:value-of select="xs:string($input) => normalize-space() => substring(1, 4)"/>
-    </xsl:function>
     <!-- 1) global parameters and variables -->
     <!-- 
-        https://git.yale.edu/mc2343/json-schema-validation/raw/master/schema.json
         https://git.yale.edu/raw/LUX/json-schema-validation/master/schema.json
-        ../../../schema.json (if testing and don't want to be on Yale network)
+        
+        https://git.yale.edu/mc2343/json-schema-validation/raw/master/schema.json
+        
+        /Users/markcuster/Documents/GitYale/json-schema-validation/schema.json
         
     -->
     <xsl:param name="json_schema_location" select="'https://git.yale.edu/raw/LUX/json-schema-validation/master/schema.json'"/>
@@ -122,7 +115,8 @@
     <!-- this determines whether we go into JSON Lines mode or not. -->
     <xsl:param name="split-files" select="true()"/>
     <!-- this number determines the max number of lines in a JSON lines file.  we have a few collections with more than 10k, so we'll use that as a test case (we don't have any over 50k, though). -->
-    <xsl:param name="split-at" as="xs:integer" select="10000"/>
+    <!-- was requested to change this to 5k -->
+    <xsl:param name="split-at" as="xs:integer" select="5000"/>
     
     <!-- parameter for the serilization map, below.  
     for jsonl, though, we'll always keep this set to false... so, just adding two different variables for that now.
@@ -130,18 +124,19 @@
     <xsl:param name="indent" select="true()"/>
     
     <!-- note that saxon:property-order requires saxon pe or ee -->
+    <!-- also, update this later since the only change is whether we indent or not!  should just update that one value when not using jsonlines -->
     <xsl:variable name="serialization-map" select="map{
         'method':'json',
         'encoding': 'utf-8',
         'indent': $indent,
-        QName('http://saxon.sf.net/', 'property-order'): '$schema identifiers edition_display imprint_display materials_display titles measurements notes languages agents places dates subjects locations usage_rights supertypes hierarchies * subject_facets',
+        QName('http://saxon.sf.net/', 'property-order'): '$schema identifiers edition_display imprint_display materials_display titles measurements notes languages agents places dates subjects locations rights supertypes hierarchies * subject_facets',
         'use-character-maps': map{'/': '/'}}"/>
     
     <xsl:variable name="jsonl-serialization-map" select="map{
         'method':'json',
         'encoding': 'utf-8',
         'indent': false(),
-        QName('http://saxon.sf.net/', 'property-order'): '$schema identifiers edition_display imprint_display materials_display titles measurements notes languages agents places dates subjects locations usage_rights supertypes hierarchies * subject_facets',
+        QName('http://saxon.sf.net/', 'property-order'): '$schema identifiers edition_display imprint_display materials_display titles measurements notes languages agents places dates subjects locations rights supertypes hierarchies * subject_facets',
         'use-character-maps': map{'/': '/'}}"/>
     
     <xsl:variable name="collection-ID" select="ead3:ead/ead3:control/ead3:recordid"/>
@@ -153,7 +148,7 @@
     <!-- also, YCBA-IA and OHAM (and Beinecke Ndy) use no separators.  in those cases, it's just code+number, eg. S001 -->
     <!-- could probably just grab the first character in those cases, but right now I still have no idea what they mean, if anything -->
     <xsl:variable name="curatorial-code-separator" select="if ($repo-code eq 'ypm') then '.' else ' '"/>
-    <!-- need to change this logic for other edge cases, like Beinecke "NdyXXX" call numbers -->
+    <!-- need to change this logic for other edge cases, like Beinecke "NdyXXX" call numbers. for now, those just get added to General Collection. -->
     <xsl:variable name="curatorial-code" select="$collection-call-number => substring-before($curatorial-code-separator) => upper-case()"/>
     
     <!-- consider changing to archdesc/did/repository, since the corpname element could actually have an @identifier attribute available there.  the publisher element, on the other hand, could only have an id attribute.-->
@@ -162,6 +157,15 @@
     <!-- only 1 for the entire collection right now, but could add the archival object timestamps if needed if we add to the EAD3 exports -->
     <xsl:variable name="last-updated" select="ead3:ead/ead3:control/ead3:maintenancehistory/ead3:maintenanceevent[1]/ead3:eventdatetime[1]"/>
     
+    <xsl:variable name='default-general-collection-name' select="'General Collection'"/>
+    
+    <xsl:variable name="local-acccess-restriction-types" select="map{
+        'RestrictedSpecColl': 'Donor/university imposed access restriction',
+        'RestrictedCurApprSpecColl': 'Repository imposed access restriction',
+        'RestrictedFragileSpecColl': 'Restricted fragile',
+        'InProcessSpecColl': 'Restricted in-process',
+        'UseSurrogate': 'Use surrogate'
+        }"/>
     
 
     <!-- 2) primary template section -->
@@ -297,7 +301,7 @@
                 <xsl:value-of select="$json_schema_location"/>
             </j:string>
             
-            <!-- sneaking in a modification time, even though not part of the schema yet -->
+            <!-- last updated timestamp. currently the same value for an entire finding aid, but could update to include individual timestamps on components later on -->
             <j:string key="last_updated">
                 <xsl:value-of select="$last-updated"/>
             </j:string>
@@ -425,8 +429,6 @@
                         ead3:did/ead3:physdesc (: definitely elsewhere, right? :) |
                         ead3:did/ead3:physfacet |
                         ead3:did/ead3:physloc |
-
-                        ead3:accessrestrict (:here or elsewhere:) |
                         ead3:accruals | 
                         ead3:altformavail |
                         ead3:acqinfo |
@@ -446,8 +448,7 @@
                         ead3:processinfo |
                         ead3:relatedmaterial |
                         ead3:scopecontent |
-                        ead3:separatedmaterial |
-                        ead3:userestrict (:here or elsewhere:)" mode="notes"/> 
+                        ead3:separatedmaterial" mode="notes"/> 
             </j:array>
             
             <!-- languages -->
@@ -498,20 +499,15 @@
             <j:array key="locations">
                 <j:map>
                     <!-- hopefully we can change the names when the JSON schema is revised -->
-                    <j:array key="repository">
+                    <j:array key="campus_division">
                         <j:string>
                             <xsl:value-of select="if ($repo-code eq 'ypm') then 'Yale Peabody Museum of Natural History' 
                                 else if ($repo-code eq 'ycba') then 'Yale Center for British Art'
                                 else 'Yale University Library'"/>
                         </j:string>
-                        <xsl:if test="not($repo-code = ('ypm', 'ycba'))">
-                            <j:string>
-                                <xsl:value-of select="$repository-name"/>
-                            </j:string>
-                        </xsl:if>
                     </j:array>
                     
-                    <xsl:call-template name="collection_in_repository"/>
+                    <xsl:call-template name="collections"/>
                     
                     <!-- could do something here about on-site vs. off-site, but need guidance on this. ditto for a lot of stuff here. -->
                     <j:array key="access_in_repository"/>
@@ -524,9 +520,9 @@
                         <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][not(@show='embed')] | ead3:did/ead3:dao[@href][not(@show='embed')]"/>
                     </j:array>
                     
-                    <j:array key="access_contact_in_repository">
+                    <j:string key="access_contact_in_repository">
                         <xsl:apply-templates select="ead3:did" mode="access_notes"/>
-                    </j:array>
+                    </j:string>
                     
                     <!-- can add a single thumbnail here now, but there will be issues with re-associating multiple digital objects + what happens if we can supply all of the thumbnails to LUX? -->
                     <j:array key="access_to_image_URI">
@@ -535,35 +531,9 @@
                 </j:map>          
             </j:array>
             
-            <!-- usage rights -->
-            <j:array key="usage_rights">
-                <j:map>
-                    <!-- this is a local access restriction type, not usage, but where else to map it?  
-                        also, we don't use the rights module right now, so no way to specify things like public domain, etc. -->
-                    <!-- so, we'll likely need to change these mappings once we have more guidance -->
-                    <j:array key="rights">
-                        <!-- now that this is an array, we can tokenize -->
-                        <xsl:for-each select="ead3:accessrestrict/tokenize(@localtype, ' ')">
-                            <j:string>
-                                <xsl:value-of select="."/>
-                            </j:string>
-                        </xsl:for-each>
-                    </j:array>
-                    
-                    <!-- this is difficult to untangle, since we have access vs. use notes.  will likely need to consult with staff and come up with mapping logic-->
-                    <j:array key="rights_notes"/>
-                    
-                    <!-- again, not something we currently track, so i think the best we could do for now would be a generic page for each repo?.
-                        but, if we did track it, there's a place to do that in ASpace -->
-                    <j:array key="rights_URI">
-                        <j:string>
-                            <xsl:value-of select="if ($repo-code = 'beinecke') 
-                                then 'https://beinecke.library.yale.edu/research-teaching/copyright-questions' 
-                                else ''"/>
-                            <!-- follow up on this with all of the repos -->
-                        </j:string>
-                    </j:array>
-                </j:map>
+
+            <j:array key="rights">
+                <xsl:call-template name="rights"/>
             </j:array>
             
             <!-- hierarchies -->
@@ -680,13 +650,10 @@
     
     <!-- would it be better to create a variable with the notes?? -->
     <xsl:template match="ead3:did" mode="access_notes">
-        <!-- now an array.  we only have one note with this first pass, though, so i'm adding the string part here. -->
-        <j:string>
-            <xsl:call-template name="access_notes">
-                <xsl:with-param name="repo-code" select="$repo-code"/>
-                <xsl:with-param name="collection-URI" select="$collection-URI"/>
-            </xsl:call-template>  
-        </j:string>
+        <xsl:call-template name="access_notes">
+            <xsl:with-param name="repo-code" select="$repo-code"/>
+            <xsl:with-param name="collection-URI" select="$collection-URI"/>
+        </xsl:call-template>  
     </xsl:template>
     
     <xsl:template match="ead3:unittitle">
@@ -715,6 +682,73 @@
     
     <xsl:template match="ead3:unittitle" mode="inherit">
         <xsl:apply-templates/>
+    </xsl:template>
+    
+    <xsl:template name="rights">
+        <xsl:apply-templates select="ead3:accessrestrict | ead3:userestrict"/>        
+        <xsl:if test="not(ead3:accessrestrict or ead3:userestrict)">
+                <j:map>
+                    <j:string key="rights_display"/>
+                    <j:array key="rights_notes"/>                  
+                    <j:string key="rights_type"/>
+                    <xsl:call-template name="sub-rights-fields">
+                        <xsl:with-param name="no-notes" select="true()"/>
+                    </xsl:call-template>
+                </j:map>
+        </xsl:if>
+    </xsl:template>
+    
+    <xsl:template name="sub-rights-fields">
+        <xsl:param name="no-notes"/>
+        <j:string key="credit_line_display"/>
+        <!-- don't think our custodhist or acqhist notes map well to something named rights.provenance.  those are being added to the notes array still for now. -->
+        <j:string key="provenance"/>
+        <!-- again, not something we currently track, so i think the best we could do for now would be a generic page for each repo?.
+                        but, if we did track it, there's a place to do that in ASpace -->
+        <j:array key="rights_URI">
+            <j:string>
+                <xsl:value-of select="if ($repo-code = 'beinecke' and (self::ead3:userestict or $no-notes)) 
+                    then 'https://beinecke.library.yale.edu/research-teaching/copyright-questions' 
+                    else ''"/>
+                <!-- follow up on this with all of the repos -->
+            </j:string>
+        </j:array>
+    </xsl:template>
+    
+    <xsl:template match="ead3:accessrestrict | ead3:userestrict">
+        <j:map>
+            <!-- this is a local access restriction type, not usage, but where else to map it?  
+                        also, we don't use the rights module right now, so no way to specify things like public domain, etc. -->
+            <!-- so, we'll likely need to change these mappings once we have more guidance -->
+            <!-- now that this has been changed from an array to a string, this mapping doesn't work well for ASpace
+                suggest changing it back with the next update.
+                -->
+            <j:string key="rights_display">
+                <!-- we can't really do anything with userestrict here, right? -->
+                <xsl:if test="self::ead3:accessrestrict">
+                    <xsl:for-each select="tokenize(@localtype, ' ')">
+                        <xsl:value-of select="map:get($local-acccess-restriction-types, .)"/>  
+                        <xsl:if test="position() ne last()">
+                            <xsl:text>; </xsl:text>
+                        </xsl:if>
+                    </xsl:for-each>
+                </xsl:if>
+            </j:string>
+            
+            <!-- this is difficult to untangle, since we have access vs. use notes.  will likely need to consult with staff and come up with mapping logic-->
+            <j:array key="rights_notes">
+                <j:string>
+                    <xsl:apply-templates/>
+                </j:string>
+            </j:array>
+            
+            <j:string key="rights_type">
+                <xsl:value-of select="if (self::ead3:accessrestrict) then 'access' else 'usage'"/>
+            </j:string>
+            
+            <xsl:call-template name="sub-rights-fields"/>
+
+        </j:map>
     </xsl:template>
     
     <!-- add all the notes here, aside from the ones that are mapped elsewhere -->
@@ -827,6 +861,9 @@
                     </xsl:choose>
                 </j:string>
             </j:array>
+            <j:array key="agent_culture_display">
+                <j:string/>
+            </j:array>
             <!-- ask if this should be a number... and whether we start at 0, 1, or whatever -->
             <j:string key="agent_sort">
                 <xsl:value-of select="position()"/>
@@ -844,6 +881,27 @@
                substring(@label, 2),
                ' '[not(last())])"/>
        
+       <xsl:variable name="date_earliest" as="xs:date?">
+           <xsl:choose>
+               <xsl:when test="$current-node-name eq 'unitdatestructured' and descendant::ead3:*/@standarddate">
+                   <xsl:value-of select="min(descendant::ead3:*[@standarddate]/mdc:convert-to-date(@standarddate))"/>
+               </xsl:when>
+               <xsl:when test="$current-node-name eq 'unitdate' and @normal">
+                   <xsl:value-of select="(if (contains(@normal, '/')) then substring-before(@normal, '/') else @normal) => mdc:convert-to-date()"/>
+               </xsl:when>
+           </xsl:choose>
+       </xsl:variable>
+       <xsl:variable name="date_latest" as="xs:date?">
+           <xsl:choose>                  
+               <xsl:when test="$current-node-name eq 'unitdatestructured' and descendant::ead3:*/@standarddate">
+                   <xsl:value-of select="max(descendant::ead3:*[@standarddate]/mdc:convert-to-date(@standarddate))"/>
+               </xsl:when>
+               <xsl:when test="$current-node-name eq 'unitdate' and contains(@normal, '/')">
+                   <xsl:value-of select="substring-after(normalize-space(@normal), '/') => mdc:convert-to-date()"/>
+               </xsl:when>
+           </xsl:choose>
+       </xsl:variable>
+       
        <j:map>
            <j:string key="date_display">
                <xsl:choose>
@@ -858,30 +916,22 @@
                    </xsl:otherwise>
                </xsl:choose>
            </j:string>
-           <!-- the following should be at the top level in the JSON model, otherwise it's pretty useless... nevertheless-->
-           <!-- also, new request is to just grab the year, not the whole date. -->
-           <j:string key="date_earliest">
-               <xsl:choose>
-                   <xsl:when test="$current-node-name eq 'unitdatestructured' and descendant::ead3:*/@standarddate">
-                       <xsl:value-of select="min(descendant::ead3:*[@standarddate]/mdc:convert-to-date(@standarddate)) => mdc:first-four-characters()"/>
-                   </xsl:when>
-                   <xsl:when test="$current-node-name eq 'unitdate' and @normal">
-                       <xsl:value-of select="(if (contains(@normal, '/')) then substring-before(@normal, '/') else @normal) => mdc:first-four-characters()"/>
-                   </xsl:when>
-                   <xsl:otherwise/>
-               </xsl:choose>
-           </j:string>
-           <j:string key="date_latest">
-               <xsl:choose>                  
-                   <xsl:when test="$current-node-name eq 'unitdatestructured' and descendant::ead3:*/@standarddate">
-                       <xsl:value-of select="max(descendant::ead3:*[@standarddate]/mdc:convert-to-date(@standarddate)) => mdc:first-four-characters()"/>
-                   </xsl:when>
-                   <xsl:when test="$current-node-name eq 'unitdate' and contains(@normal, '/')">
-                       <xsl:value-of select="substring-after(normalize-space(@normal), '/') => mdc:first-four-characters()"/>
-                   </xsl:when>
-                   <xsl:otherwise/>
-               </xsl:choose>
-           </j:string>
+           <xsl:if test="$date_earliest castable as xs:date">
+               <j:string key="date_earliest">
+                   <xsl:value-of select="$date_earliest"/>
+               </j:string>
+               <j:string key="year_earliest">
+                   <xsl:value-of select="$date_earliest => year-from-date() => format-number('0000')"/>
+               </j:string>
+           </xsl:if>
+           <xsl:if test="$date_latest castable as xs:date">
+               <j:string key="date_latest">
+                   <xsl:value-of select="$date_latest"/>
+               </j:string>
+               <j:string key="year_latest">
+                   <xsl:value-of select="$date_latest => year-from-date() => format-number('0000')"/>
+               </j:string>  
+           </xsl:if>
            <!-- i guess we'll combine the label and the unitdatetype here.  need something to distinguish between bulk dates, or just remove those? -->
            <j:string key="date_role_display">
                <!-- is Creation okay, or do i need to change this to "created" like the other examples.  Why do the exmaples have lower-cased display names? -->
@@ -976,6 +1026,7 @@
                 <j:map>
                     <j:string key="measurement_display"/>
                     <j:string key="measurement_value"/>
+                    <j:string key="measurement_element"/>
                     <j:string key="measurement_unit"/>
                     <j:array key="measurement_unit_URI"/>
                     <j:string key="measurement_type"/>
@@ -992,6 +1043,8 @@
                     <j:string key="measurement_value">
                         <xsl:apply-templates select="ead3:quantity"/>
                     </j:string>
+                    <!-- new field, with example values like "crate", "frame", etc. -->
+                    <j:string key="measurement_element"/>
                     <j:string key="measurement_unit">
                         <xsl:apply-templates select="ead3:unittype"/>
                     </j:string>
@@ -1068,23 +1121,31 @@
     
     
     <!-- other named templates -->
-    <xsl:template name="collection_in_repository">
+    <xsl:template name="collections">
         
-        <j:array key="collection_in_repository">
+        <j:array key="collections">
+            <xsl:if test="not($repo-code = ('ypm', 'ycba'))">
+                <j:string>
+                    <xsl:value-of select="$repository-name"/>
+                </j:string>
+            </xsl:if>
             <j:string>
                 <xsl:choose>
                     <xsl:when test="$repo-code eq 'beinecke'">
-                        <xsl:value-of select="(map:get($beinecke_sub_collections, $curatorial-code), 'General Collection')[1]"/>
+                        <xsl:value-of select="(map:get($beinecke_sub_collections, $curatorial-code), $default-general-collection-name)[1]"/>
                     </xsl:when>
                     <xsl:when test="$repo-code eq 'mssa'">
-                        <xsl:value-of select="map:get($mssa_sub_collections, $curatorial-code)"/>
+                        <xsl:value-of select="(map:get($mssa_sub_collections, $curatorial-code), $default-general-collection-name)[1]"/>
                     </xsl:when>
                     <xsl:when test="$repo-code eq 'arts'">
-                        <xsl:value-of select="map:get($arts_sub_collections, $curatorial-code)"/>
+                        <xsl:value-of select="(map:get($arts_sub_collections, $curatorial-code), $default-general-collection-name)[1]"/>
                     </xsl:when>
                     <xsl:when test="$repo-code eq 'ypm'">
                         <xsl:value-of select="map:get($ypm_sub_collections, $curatorial-code)"/>
                     </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:value-of select="$default-general-collection-name"/>
+                    </xsl:otherwise>
                 </xsl:choose>
             </j:string>
         </j:array>
