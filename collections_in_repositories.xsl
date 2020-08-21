@@ -3,7 +3,7 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     xmlns:math="http://www.w3.org/2005/xpath-functions/math" exclude-result-prefixes="xs math"
     version="3.0">
-
+    
     <xsl:variable name="arts_sub_collections" select="map{
         'VRC': 'Visual Resources Collection'
         }"/>
@@ -20,9 +20,10 @@
         }"/>
     
     <xsl:variable name="mssa_sub_collections" select="map{
-        'RU': 'University Archives'
+        'RU': 'University Archives',
+        'MS': 'Manuscript Collections'
         }"/>
-      
+    
     <xsl:variable name="ypm_sub_collections" select="map{
         'ANTAR': 'Anthropology',
         'BOTAR': 'Botany',
@@ -35,5 +36,5 @@
         'VZAR': 'Vertebrate Zoology',
         'YPMAR': 'Archives'
         }"/>
-       
+    
 </xsl:stylesheet>

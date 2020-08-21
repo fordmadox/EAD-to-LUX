@@ -14,8 +14,13 @@
     <xsl:include href="collections_in_repositories.xsl"/>
     
     <xsl:key name="relator-code" match="relator" use="code"/>
+
     
     <!-- to do:
+        
+        review how languages are serialized once we upgrade.  
+            can likely split out the notes better, if data is added to descriptiveNote moving forward.
+            
         fix how the HTML conversion is handled.  no need to do silly text stuff. 
         
         finish usage rights
@@ -31,8 +36,7 @@
     <!-- 
         questions: 
             1) multiple supertype 1s?
-            2) collection_in_repository:  currently mapping stuff here...  what are the mappings for this from Voyager?
-            3) access_in_repository:  what are folks using?
+            2) access_in_repository:  what are folks using?
     -->
     
     
@@ -112,7 +116,7 @@
     
     <xsl:param name="newline" select="'&#xa;'"/>
         
-    <!-- this determines whether we go into JSON Lines mode or not. -->
+    <!-- this determines whether we go into JSON Lines mode or not.  pass false during testing. -->
     <xsl:param name="split-files" select="true()"/>
     <!-- this number determines the max number of lines in a JSON lines file.  we have a few collections with more than 10k, so we'll use that as a test case (we don't have any over 50k, though). -->
     <!-- was requested to change this to 5k -->
@@ -274,14 +278,7 @@
         plus add series id of current component.
         -->
         <xsl:variable name="EAD-unitid">
-            <xsl:value-of select="if ($archdesc-level) then $collection-call-number
-                else ead3:did/ead3:unitid[not(@audience='internal')][1]/normalize-space()"/>
-        </xsl:variable>
-        
-        <xsl:variable name="DSC-composite-unitid">
-            <xsl:value-of select="if (@level=('series'))
-                then string-join(ancestor::ead3:*[not(@audience='internal')][@level=('collection', 'fonds', 'recordgrp', 'series')]/ead3:did/ead3:unitid/normalize-space(), ', ') => concat(', ', $EAD-unitid)
-                else string-join(ancestor::ead3:*[not(@audience='internal')][@level=('collection', 'fonds', 'recordgrp', 'series')]/ead3:did/ead3:unitid/normalize-space(), ', ')"/>
+            <xsl:value-of select="if ($archdesc-level) then '' else ead3:did/ead3:unitid[not(@audience='internal')][1]/normalize-space()"/>
         </xsl:variable>
         
         <xsl:variable name="Voyager-BIB-ID" select="../ead3:control/ead3:otherrecordid[@localtype='BIB'][1]/normalize-space()"/>     
@@ -335,34 +332,35 @@
                    </j:string>
                </j:map>
                <j:map>
-                   <xsl:choose> 
-                       <xsl:when test="$archdesc-level">
-                           <j:string key="identifier_value">
-                               <xsl:value-of select="$EAD-unitid"/>
-                           </j:string>
-                           <j:string key="identifier_display">
-                               <xsl:value-of select="$EAD-unitid"/>
-                           </j:string>
-                       </xsl:when>
-                       <xsl:otherwise>
-                           <j:string key="identifier_value">
-                               <xsl:value-of select="$DSC-composite-unitid"/>
-                           </j:string>
-                           <j:string key="identifier_display">
-                               <xsl:value-of select="$DSC-composite-unitid"/>
-                           </j:string>
-                       </xsl:otherwise>
-                   </xsl:choose>
+                   <j:string key="identifier_value">
+                       <xsl:value-of select="$collection-call-number"/>
+                   </j:string>
+                   <j:string key="identifier_display">
+                       <xsl:value-of select="$collection-call-number"/>
+                   </j:string>
                    <j:string key="identifier_type">
                        <xsl:value-of select="'call number'"/>
                    </j:string>
-               </j:map>            
+               </j:map>
+               <xsl:for-each select="ancestor::ead3:c[not(@audience='internal')][@level=('collection', 'fonds', 'recordgrp', 'series')][ead3:did/ead3:unitid/normalize-space()]">
+                   <j:map>
+                       <j:string key="identifier_value">
+                           <xsl:value-of select="ead3:did/ead3:unitid/normalize-space()"/>
+                       </j:string>
+                       <j:string key="identifier_display"/>
+                       <j:string key="identifier_type">
+                           <xsl:value-of select="@level || ' unitid'"/>
+                       </j:string>
+                   </j:map>
+               </xsl:for-each>
                <xsl:if test="$EAD-unitid != '' and not($archdesc-level)">
                    <j:map>
                        <j:string key="identifier_value">
                            <xsl:value-of select="$EAD-unitid"/>
                        </j:string>
-                       <j:string key="identifier_display"/>
+                       <j:string key="identifier_display">
+                           <xsl:value-of select="$EAD-unitid"/>
+                       </j:string>
                        <j:string key="identifier_type">
                            <xsl:text>unitid</xsl:text>
                        </j:string>
@@ -394,10 +392,7 @@
             <!-- titles -->
             <j:array key="titles">
                 <!-- don't need all of this internal stuff since we already process the EAD, but what the hay -->
-                <xsl:apply-templates select="ead3:did/ead3:unittitle[not(@audience='internal')]"/>
-                <xsl:if test="not(ead3:did/ead3:unittitle[not(@audience='internal')])">
-                    <xsl:call-template name="create-title"/>
-                </xsl:if>
+                <xsl:call-template name="combine-title-and-date"/>
             </j:array>
             
             <!--measurements
@@ -426,7 +421,7 @@
                         ead3:did/ead3:dimensions (: add elsewhere? :) |                        
                         ead3:did/ead3:langmaterial |  (: not sure if we want to add these as text notes or not, if we include them elsewhere? :)
                         ead3:did/ead3:materialspec |
-                        ead3:did/ead3:physdesc (: definitely elsewhere, right? :) |
+                        ead3:did/ead3:physdesc[not(@localtype='container_summary')] (: definitely elsewhere, right? :) |
                         ead3:did/ead3:physfacet |
                         ead3:did/ead3:physloc |
                         ead3:accruals | 
@@ -505,6 +500,15 @@
                                 else if ($repo-code eq 'ycba') then 'Yale Center for British Art'
                                 else 'Yale University Library'"/>
                         </j:string>
+                    </j:array>
+                    
+                    <!-- what about YCBA, Peabody?  just leave out, right? -->
+                    <j:array key="yul_holding_institution">
+                        <xsl:if test="not($repo-code = ('ypm', 'ycba'))">
+                            <j:string>
+                                <xsl:value-of select="if (contains($repository-name, 'Arts Library')) then 'Haas Arts Library' else $repository-name"/>
+                            </j:string>
+                        </xsl:if>
                     </j:array>
                     
                     <xsl:call-template name="collections"/>
@@ -635,14 +639,13 @@
             <xsl:if test="../@level = 'series' and ead3:unitid">
                 <xsl:value-of select="ead3:unitid/normalize-space() || '. '"/>
             </xsl:if>
-            <!-- right now, we're not combining titles + dates, but if there is no title, let's grab the dates -->
             <xsl:choose>
                 <xsl:when test="ead3:unittitle">
                     <!-- we can only have one, but update if that ever changes in ASpace -->
                     <xsl:apply-templates select="ead3:unittitle" mode="#current"/>
                 </xsl:when>
                 <xsl:otherwise>
-                    <xsl:value-of select="string-join(ead3:unitdate | ead3:unitdatestructured/@altrender, ', ') => normalize-space()"/>
+                    <xsl:apply-templates select="ead3:unitdate | ead3:unitdatestructured" mode="add-dates-to-title"/>
                 </xsl:otherwise>
             </xsl:choose>
         </j:string>
@@ -656,32 +659,40 @@
         </xsl:call-template>  
     </xsl:template>
     
-    <xsl:template match="ead3:unittitle">
+    <xsl:template name="combine-title-and-date">
+        <!-- also need to deal with inherited titles here.  e.g. if not ead3:did/ead3:unittitle,
+            specify type = 'inherited'
+            and grab archival object or archdesc title -->
         <j:map>
-            <j:string key="title_display">
-                <xsl:apply-templates/>
-            </j:string>
-            <j:string key="title_type">
-                <xsl:value-of select="if (position() eq 1) then 'primary' else 'alternative'"/>
-            </j:string>
+            <xsl:choose>
+                <xsl:when test="not(ead3:did/ead3:unittitle[not(@audience='internal')])">
+                    <j:string key="title_display">
+                        <xsl:apply-templates select="ancestor::ead3:*[ead3:did/ead3:unittitle][1]/ead3:did/ead3:unittitle"/>
+                        <!-- if no title, ASpace requires a date, but let's add a check regardless -->
+                        <xsl:if test="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured">
+                            <xsl:text>, </xsl:text> 
+                        </xsl:if>
+                        <xsl:apply-templates select="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured" mode="add-dates-to-title"/>
+                    </j:string>
+                    <j:string key="title_type">
+                        <xsl:value-of select="'inherited'"/>
+                    </j:string>
+                </xsl:when>
+                <xsl:otherwise>
+                    <j:string key="title_display">
+                        <xsl:apply-templates select="ead3:did/ead3:unittitle"/>
+                        <xsl:if test="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured">
+                            <xsl:text>, </xsl:text> 
+                        </xsl:if>
+                        <xsl:apply-templates select="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured" mode="add-dates-to-title"/>
+                    </j:string>
+                    <!-- ASpace only allows one title, so we'll just call those "primary" for now. if it gets the ability to add multiple titles, then update this with a passed param -->
+                    <j:string key="title_type">
+                        <xsl:value-of select="'primary'"/>
+                    </j:string>
+                </xsl:otherwise>
+            </xsl:choose>
         </j:map>
-    </xsl:template>
-    
-    <xsl:template name="create-title">
-        <j:map>
-            <j:string key="title_display">
-                <xsl:apply-templates select="ancestor::ead3:c[ead3:did/ead3:unittitle][1]/ead3:did/ead3:unittitle" mode="inherit"/>
-                <xsl:text>, </xsl:text>
-                <xsl:value-of select="string-join(ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured/@altrender, ', ') => normalize-space()"/>
-            </j:string>
-            <j:string key="title_type">
-                <xsl:value-of select="'inherited'"/>
-            </j:string>
-        </j:map>
-    </xsl:template>
-    
-    <xsl:template match="ead3:unittitle" mode="inherit">
-        <xsl:apply-templates/>
     </xsl:template>
     
     <xsl:template name="rights">
@@ -727,10 +738,12 @@
                 <!-- we can't really do anything with userestrict here, right? -->
                 <xsl:if test="self::ead3:accessrestrict">
                     <xsl:for-each select="tokenize(@localtype, ' ')">
-                        <xsl:value-of select="map:get($local-acccess-restriction-types, .)"/>  
-                        <xsl:if test="position() ne last()">
-                            <xsl:text>; </xsl:text>
-                        </xsl:if>
+                        <if test="map:contains($local-access-restriction-types, .)">
+                            <xsl:value-of select="map:get($local-acccess-restriction-types, .)"/>  
+                            <xsl:if test="position() ne last()">
+                                <xsl:text>; </xsl:text>
+                            </xsl:if>
+                        </if>
                     </xsl:for-each>
                 </xsl:if>
             </j:string>
@@ -758,8 +771,18 @@
                 <xsl:apply-templates/>
             </j:string>
             <j:string key="note_type">
+                <!-- once we have a note_label field, change this to note_label and remove the local-name() bit as the the last option -->
+                <xsl:value-of select="if (local-name() eq 'abstract') then 'Abstract' 
+                    else if (local-name() eq 'langmaterial') then 'Language'
+                    else if (ead3:head) then ead3:head[1]/normalize-space()
+                    else if (@label) then normalize-space(@label) 
+                    else local-name()"/>
+            </j:string> 
+            <!-- this is NOT the not type, but until we have a note_label field in the schema, we'll pass the label here instead 
+            <j:string key="note_type">
                 <xsl:value-of select="local-name()"/>
             </j:string>
+            -->
         </j:map>
     </xsl:template>
     
@@ -774,7 +797,7 @@
             </j:string>
             <j:array key="language_URI">
                 <j:string>
-                    <xsl:value-of select="if (@langcode) then 'http://id.loc.gov/vocabulary/iso639-2/' || normalize-space(@langcode) else ''"/>
+                    <xsl:value-of select="if (@langcode) then 'http://id.loc.gov/vocabulary/languages/' || normalize-space(@langcode) else ''"/>
                 </j:string>
             </j:array>
             <!-- advocate for scriptcodes, too? -->
@@ -838,10 +861,6 @@
                         <xsl:text>unknown</xsl:text>
                     </xsl:otherwise>
                 </xsl:choose>
-                <!-- nowhere to distinguish between creators and sources...  do that this way? -->
-                <xsl:value-of select="if (@label = 'Creator') then ' (creator of materials)'
-                    else if (@label = 'Source') then ' (source of materials)'
-                    else ''"/>
                 <!-- or just filter out sources from LUX? -->
             </j:string>
             <j:array key="agent_type_URI">
@@ -871,12 +890,33 @@
         </j:map>
     </xsl:template>
     
+    <xsl:template match="ead3:unitdate | ead3:unitdatestructured" mode="add-dates-to-title">
+        <xsl:if test="@unitdatetype eq 'bulk' and not(contains(lower-case(.), 'bulk'))">
+            <xsl:text>bulk </xsl:text>
+        </xsl:if>
+        <xsl:choose>
+            <xsl:when test="@altrender">
+                <xsl:value-of select="normalize-space(@altrender)"/>
+            </xsl:when>
+            <xsl:when test="self::ead3:unitdate">
+                <xsl:value-of select="translate(., '-', '&#x2013;')"/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:apply-templates mode="#current"/>
+            </xsl:otherwise>
+        </xsl:choose>
+        <xsl:if test="position() ne last()">
+            <xsl:text>, </xsl:text>
+        </xsl:if>
+    </xsl:template>
+    
     <!-- really need to review all of the EAD3 possibilities, but pretty sure that ASpace limits those quite a bit -->
     <!-- need to use datatypes like  xs:gYear
         or fine to just use number? -->
    <xsl:template match="ead3:unitdate | ead3:unitdatestructured">
        <xsl:variable name="current-node-name" select="self::*/local-name()"/>
        <!-- capitalize the @label -->
+       <!-- note:  serializing the date types to @label right now, but should update to use @datechar instead. -->
        <xsl:variable name="date_role_display" select="concat(upper-case(substring(@label,1,1)),
                substring(@label, 2),
                ' '[not(last())])"/>
@@ -952,6 +992,7 @@
            </j:string>
                
            <!-- gotta get a list of these, as well -->
+           <!-- e.g. broadcast, accession, digitizaiton, etc. -->
            <j:array key="date_role_URI">
                <j:string >
                    <xsl:choose>
@@ -1039,6 +1080,11 @@
                         <xsl:value-of select="(ead3:quantity || ' ' || ead3:unittype) => normalize-space()"/>
                         <!-- keep an eye on descriptivenote.  it should wind up with paragraph tags, but who knows if that will break things here -->
                         <xsl:apply-templates select="ead3:physfacet  | ead3:dimensions | ead3:descriptivenote"/>
+                        <!-- i should update the EAD3 exporter to put the container summary in descriptivenote.  for now, just treat it separately -->
+                        <xsl:if test="following-sibling::ead3:physdesc[1][@localtype='container_summary']">
+                            <xsl:text> </xsl:text>
+                            <xsl:apply-templates select="following-sibling::ead3:physdesc[1][@localtype='container_summary']"/>
+                        </xsl:if>
                     </j:string>
                     <j:string key="measurement_value">
                         <xsl:apply-templates select="ead3:quantity"/>
@@ -1059,6 +1105,21 @@
                 </j:map>        
             </xsl:otherwise>
         </xsl:choose>
+    </xsl:template>
+    
+    <xsl:template match="ead3:physdesc[@localtype='container_summary']">
+        <xsl:choose>
+            <!-- testing to see if it already has parantheses. if so, don't add 'em. -->
+            <xsl:when test="matches(normalize-space(.), '^[(](.*)[)]$')">
+                <xsl:apply-templates/>
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:text>(</xsl:text>
+                <xsl:apply-templates/>
+                <xsl:text>)</xsl:text>
+            </xsl:otherwise>
+        </xsl:choose>
+        
     </xsl:template>
     
     <xsl:template match="ead3:physfacet">
@@ -1122,27 +1183,39 @@
     
     <!-- other named templates -->
     <xsl:template name="collections">
-        
         <j:array key="collections">
-            <xsl:if test="not($repo-code = ('ypm', 'ycba'))">
-                <j:string>
-                    <xsl:value-of select="$repository-name"/>
-                </j:string>
-            </xsl:if>
             <j:string>
                 <xsl:choose>
                     <xsl:when test="$repo-code eq 'beinecke'">
                         <xsl:value-of select="(map:get($beinecke_sub_collections, $curatorial-code), $default-general-collection-name)[1]"/>
                     </xsl:when>
                     <xsl:when test="$repo-code eq 'mssa'">
-                        <xsl:value-of select="(map:get($mssa_sub_collections, $curatorial-code), $default-general-collection-name)[1]"/>
+                        <xsl:value-of select="map:get($mssa_sub_collections, $curatorial-code)"/>
                     </xsl:when>
+                    <!--  adding a different default for Arts, so right now it will either be VRC or SC. -->
                     <xsl:when test="$repo-code eq 'arts'">
-                        <xsl:value-of select="(map:get($arts_sub_collections, $curatorial-code), $default-general-collection-name)[1]"/>
+                        <xsl:value-of select="(map:get($arts_sub_collections, $curatorial-code), 'Arts Library Special Collections')[1]"/>
                     </xsl:when>
                     <xsl:when test="$repo-code eq 'ypm'">
                         <xsl:value-of select="map:get($ypm_sub_collections, $curatorial-code)"/>
                     </xsl:when>
+                    <xsl:when test="$repository-name eq 'Yale Center for British Art, Institutional Archives'">
+                        <xsl:text>Institutional Archives (YCBA)</xsl:text>
+                    </xsl:when>
+                    <xsl:when test="$repository-name eq 'Yale Center for British Art, Rare Books and Manuscripts'">
+                        <xsl:text>Rare Books and Manuscripts (YCBA)</xsl:text>
+                    </xsl:when>
+                    <!-- Medical:
+                            "Ms" and "Pam"
+                         Music:
+                            "Mss" and "Misc."
+                         Div:
+                            "RG"
+                         Arts: 
+                            "VRC", "BKP", "AOB", "DRA", what else? 
+                         YCBA-IA:
+                            A, S
+                        -->
                     <xsl:otherwise>
                         <xsl:value-of select="$default-general-collection-name"/>
                     </xsl:otherwise>
