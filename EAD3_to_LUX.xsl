@@ -117,7 +117,7 @@
     <xsl:param name="newline" select="'&#xa;'"/>
         
     <!-- this determines whether we go into JSON Lines mode or not.  pass false during testing. -->
-    <xsl:param name="split-files" select="true()"/>
+    <xsl:param name="split-files" select="false()"/>
     <!-- this number determines the max number of lines in a JSON lines file.  we have a few collections with more than 10k, so we'll use that as a test case (we don't have any over 50k, though). -->
     <!-- was requested to change this to 5k -->
     <xsl:param name="split-at" as="xs:integer" select="5000"/>
@@ -804,14 +804,8 @@
             <j:string key="rights_display">
                 <!-- we can't really do anything with userestrict here, right? -->
                 <xsl:if test="self::ead3:accessrestrict">
-                    <xsl:for-each select="tokenize(@localtype, ' ')">
-                        <xsl:if test="map:contains($local-access-restriction-types, .)">
-                            <xsl:value-of select="map:get($local-access-restriction-types, .)"/>  
-                            <xsl:if test="position() ne last()">
-                                <xsl:text>; </xsl:text>
-                            </xsl:if>
-                        </xsl:if>
-                    </xsl:for-each>
+                    <xsl:value-of select="for $t in tokenize(@localtype, ' ') 
+                        return map:get($local-access-restriction-types, $t)" separator="; "/>                 
                 </xsl:if>
             </j:string>
             
