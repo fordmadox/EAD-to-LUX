@@ -591,6 +591,7 @@
             
             <!-- supertypes -->
             <!-- update once we know how this should be handled, and if we can add multiple supertype_level 1s -->
+            <!-- also recommend that this be remodelled, so that the hiearchy is explici.  right now, the order matters -->
             <j:array key="supertypes">
                 <j:map>  
                     <j:string key="supertype">Archival and Manuscript Material</j:string>
@@ -628,11 +629,38 @@
                         <j:string key="supertype_level">3</j:string>
                     </j:map>
                 </xsl:if>
-            </j:array>
-            
-            <!-- more level1s ??? -->
                 
-
+                <!-- more level1s ??? -->
+                <!-- where would a word doc go, a floppy disc, etc.?-->
+                <!-- for now, let's just add an additional type hierarchy based on video/audio extent types -->
+                <!-- 
+                Time-Based Media	Audio
+                Time-Based Media	Moving Images -->
+                
+                <!-- DRY this up and move to a function or named template once we have the full set of mappings -->
+                <xsl:variable name="audio" select="if (some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'audio|phonograph', 'i')) then true() else false()"/>
+                <xsl:variable name="video" select="if (some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'video', 'i')) then true() else false()"/>
+                <xsl:if test="$audio">
+                    <j:map>  
+                        <j:string key="supertype">Time-Based Media</j:string>
+                        <j:string key="supertype_level">1</j:string>
+                    </j:map>
+                    <j:map>  
+                        <j:string key="supertype">Audio</j:string>
+                        <j:string key="supertype_level">2</j:string>
+                    </j:map>
+                </xsl:if>
+                <xsl:if test="$video">
+                    <j:map>  
+                        <j:string key="supertype">Time-Based Media</j:string>
+                        <j:string key="supertype_level">1</j:string>
+                    </j:map>
+                    <j:map>  
+                        <j:string key="supertype">Video</j:string>
+                        <j:string key="supertype_level">2</j:string>
+                    </j:map>
+                </xsl:if>
+            </j:array>
         </j:map>
     </xsl:template>
 
