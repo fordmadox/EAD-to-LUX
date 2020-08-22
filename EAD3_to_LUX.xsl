@@ -163,7 +163,7 @@
     
     <xsl:variable name='default-general-collection-name' select="'General Collection'"/>
     
-    <xsl:variable name="local-acccess-restriction-types" select="map{
+    <xsl:variable name="local-access-restriction-types" select="map{
         'RestrictedSpecColl': 'Donor/university imposed access restriction',
         'RestrictedCurApprSpecColl': 'Repository imposed access restriction',
         'RestrictedFragileSpecColl': 'Restricted fragile',
@@ -738,12 +738,12 @@
                 <!-- we can't really do anything with userestrict here, right? -->
                 <xsl:if test="self::ead3:accessrestrict">
                     <xsl:for-each select="tokenize(@localtype, ' ')">
-                        <if test="map:contains($local-access-restriction-types, .)">
-                            <xsl:value-of select="map:get($local-acccess-restriction-types, .)"/>  
+                        <xsl:if test="map:contains($local-access-restriction-types, .)">
+                            <xsl:value-of select="map:get($local-access-restriction-types, .)"/>  
                             <xsl:if test="position() ne last()">
                                 <xsl:text>; </xsl:text>
                             </xsl:if>
-                        </if>
+                        </xsl:if>
                     </xsl:for-each>
                 </xsl:if>
             </j:string>
