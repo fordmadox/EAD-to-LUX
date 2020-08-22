@@ -180,6 +180,18 @@
         'physfacet': 'Physical Facet',
         'physlocal': 'Physical Location'
         }"/>
+    		
+    <xsl:variable name="subject-facet-types" select="map{
+        'agent_corporate_entity': 'organization',
+        'agent_family': 'family',
+        'agent_person': 'person',
+        'cultural_context': 'culture',
+        'genre_form': 'genre',
+        'geographic': 'place',
+        'temporal': 'date',
+        'topical': 'topic',
+        'uniform_title': 'title'
+        }"/>
     
 
     <!-- 2) primary template section -->
@@ -1096,7 +1108,7 @@
                 <xsl:apply-templates/>
             </j:string>
             <j:string key="facet_type">
-                <xsl:value-of select="normalize-space(@localtype)"/>
+                <xsl:value-of select="(map:get($subject-facet-types, @localtype), @localtype)[1]"/>
             </j:string>
             <!-- can't store part URIs in ASpace, but if we could, they'd show up as identifiers in EAD -->
             <j:array key="facet_URI">
