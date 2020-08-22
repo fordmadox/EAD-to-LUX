@@ -171,6 +171,16 @@
         'UseSurrogate': 'Use surrogate'
         }"/>
     
+    <xsl:variable name="did-note-type-label-backups" select="map{
+        'abstract': 'Abstract',
+        'dimensions': 'Dimensions',
+        'langmaterial': 'Language',
+        'materialspec': 'Material Details',
+        'physdesc': 'Physical Description',
+        'physfacet': 'Physical Facet',
+        'physlocal': 'Physical Location'
+        }"/>
+    
 
     <!-- 2) primary template section -->
     <xsl:template match="ead3:ead">
@@ -772,10 +782,9 @@
             </j:string>
             <j:string key="note_type">
                 <!-- once we have a note_label field, change this to note_label and remove the local-name() bit as the the last option -->
-                <xsl:value-of select="if (local-name() eq 'abstract') then 'Abstract' 
-                    else if (local-name() eq 'langmaterial') then 'Language'
-                    else if (ead3:head) then ead3:head[1]/normalize-space()
+                <xsl:value-of select="if (ead3:head) then ead3:head[1]/normalize-space()
                     else if (@label) then normalize-space(@label) 
+                    else if (map:contains($did-note-type-label-backups, local-name())) then map:get($did-note-type-label-backups, local-name())
                     else local-name()"/>
             </j:string> 
             <!-- this is NOT the not type, but until we have a note_label field in the schema, we'll pass the label here instead 
@@ -1167,7 +1176,7 @@
                 <xsl:apply-templates select="ead3:container"/>
             </j:string>
             <j:string key="note_type">
-                <xsl:value-of select="'container'"/>
+                <xsl:value-of select="'Container'"/>
             </j:string>
         </j:map>
     </xsl:template>
