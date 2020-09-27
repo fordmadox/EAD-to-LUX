@@ -808,7 +808,7 @@
             <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'video|film', 'i')">
                 <j:array>  
                     <j:string>Time-Based Media</j:string>
-                    <j:string>Video</j:string>
+                    <j:string>Moving Images</j:string>
                 </j:array>
             </xsl:if>       
             <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'painting', 'i')">
