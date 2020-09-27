@@ -17,8 +17,7 @@
 
     
     <!-- to do:
-        
-        
+  
         review how languages are serialized once we upgrade.  
             can likely split out the notes better, if data is added to descriptiveNote moving forward.
             
@@ -36,8 +35,9 @@
     -->
     <!-- 
         questions: 
-            1) multiple supertype 1s?
-            2) access_in_repository:  what are folks using?
+            1) should everything aside from YCBA and Peabody get "Special Collections (YUL)" now?  this was the generic General Collection before.
+            2) 
+
     -->
     
     
@@ -153,14 +153,14 @@
         'method':'json',
         'encoding': 'utf-8',
         'indent': $indent,
-        QName('http://saxon.sf.net/', 'property-order'): '$schema identifiers edition_display imprint_display materials_display titles measurements notes languages agents places dates subjects locations rights supertypes hierarchies * subject_facets',
+        QName('http://saxon.sf.net/', 'property-order'): '$schema record identifiers basic_descriptors titles measurements notes languages agents places dates subjects locations rights digital_assets hierarchies * subject_facets supertypes',
         'use-character-maps': map{'/': '/'}}"/>
     
     <xsl:variable name="jsonl-serialization-map" select="map{
         'method':'json',
         'encoding': 'utf-8',
         'indent': false(),
-        QName('http://saxon.sf.net/', 'property-order'): '$schema identifiers edition_display imprint_display materials_display titles measurements notes languages agents places dates subjects locations rights supertypes hierarchies * subject_facets',
+        QName('http://saxon.sf.net/', 'property-order'): '$schema record identifiers basic_descriptors titles measurements notes languages agents places dates subjects locations rights digital_assets hierarchies * subject_facets supertypes',
         'use-character-maps': map{'/': '/'}}"/>
     
     <xsl:variable name="collection-ID" select="ead3:ead/ead3:control/ead3:recordid"/>
@@ -172,7 +172,7 @@
     <!-- also, YCBA-IA and OHAM (and Beinecke Ndy) use no separators.  in those cases, it's just code+number, eg. S001 -->
     <!-- could probably just grab the first character in those cases, but right now I still have no idea what they mean, if anything -->
     <xsl:variable name="curatorial-code-separator" select="if ($repo-code eq 'ypm') then '.' else ' '"/>
-    <!-- need to change this logic for other edge cases, like Beinecke "NdyXXX" call numbers. for now, those just get added to General Collection. -->
+    <!-- need to change this logic for other edge cases, like Beinecke "NdyXXX" call numbers. for now, those just get added to Special Collections (YUL). -->
     <xsl:variable name="curatorial-code" select="$collection-call-number => substring-before($curatorial-code-separator) => upper-case()"/>
     
     <!-- consider changing to archdesc/did/repository, since the corpname element could actually have an @identifier attribute available there.  the publisher element, on the other hand, could only have an id attribute.-->
@@ -181,7 +181,8 @@
     <!-- only 1 for the entire collection right now, but could add the archival object timestamps if needed if we add to the EAD3 exports -->
     <xsl:variable name="last-updated" select="ead3:ead/ead3:control/ead3:maintenancehistory/ead3:maintenanceevent[1]/ead3:eventdatetime[1]/replace(., '\+00:00', 'Z')"/>
     
-    <xsl:variable name='default-general-collection-name' select="'General Collection'"/>
+    <!-- should everything from ASpace get this now, aside from YCBA and Peabody??? -->
+    <xsl:variable name='default-general-collection-name' select="'Special Collections (YUL)'"/>
     
     <xsl:variable name="local-access-restriction-types" select="map{
         'RestrictedSpecColl': 'Donor/university imposed access restriction',
@@ -208,11 +209,16 @@
         'cultural_context': 'culture',
         'genre_form': 'genre',
         'geographic': 'place',
-        'temporal': 'date',
+        'temporal': 'period',
         'topical': 'topic',
         'uniform_title': 'title'
         }"/>
     
+    <xsl:param name="default-metadata-rights-status-display" select="'CC0 1.0 Universal (CC0 1.0) Public Domain Dedication'"/>
+    <xsl:param name="default-metadata-rights-URI" select="'https://creativecommons.org/publicdomain/zero/1.0/'"/>
+    <!-- but this sort of info shouldn't actually be hard-coded in the JSON files, I don't think -->
+    <xsl:param name="default-metadata-rights-type" select="'Use'"/>
+    <xsl:param name="default-metadata-rights-type-label" select="'Metadata Rights'"/>
 
     <!-- 2) primary template section -->
     <xsl:template match="ead3:ead">
@@ -339,11 +345,28 @@
             <j:string key="$schema">
                 <xsl:value-of select="$json_schema_location"/>
             </j:string>
-            
-            <!-- last updated timestamp. currently the same value for an entire finding aid, but could update to include individual timestamps on components later on -->
-            <j:string key="last_updated">
-                <xsl:value-of select="$last-updated"/>
-            </j:string>
+                   
+             
+            <j:map key="record">
+                <!-- last updated timestamp. currently the same value for an entire finding aid, but could update to include individual timestamps on components later on -->
+                <j:string key="metadata_last_modified">
+                    <xsl:value-of select="$last-updated"/>
+                </j:string>
+                <j:string key="metadata_rights_status_display">
+                    <xsl:value-of select="$default-metadata-rights-status-display"/>
+                </j:string>
+                <j:string key="metadata_rights_type">
+                    <xsl:value-of select="$default-metadata-rights-type"/>
+                </j:string>
+                <j:string key="metadata_rights_type_label">
+                    <xsl:value-of select="$default-metadata-rights-type-label"/>
+                </j:string>
+                <j:array key="metadata_rights_URI">
+                    <j:string>
+                        <xsl:value-of select="$default-metadata-rights-URI"/>
+                    </j:string>
+                </j:array>
+            </j:map>
                       
             <!-- identifiers -->
            <j:array key="identifiers">
@@ -433,14 +456,24 @@
            </j:array>
             
             
-            <!-- basic description stuff we won't be able to map to very often / at all -->
-            <j:string key="edition_display"/>
-            <j:string key="imprint_display"/>
-            
-            <!-- what could we map here??? -->
-            <j:array key="materials_display"/>
+            <!-- basic descriptors (not a grouping element) -->
+            <j:map key="basic_descriptors">
+                <xsl:call-template name="supertypes"/>
+                <j:string key="edition_display"/>
+                <j:string key="imprint_display"/>
+                
+                <!-- what could we map here??? -->
+                <j:array key="materials_display"/>
+                
+                <!-- used to go to notes, now mapping here since these have been untangled from rights -->
+                <j:array key="provenance_display">
+                    <xsl:apply-templates select="ead3:custodhist" mode="array-wrapped-notes"/>
+                </j:array>
+                <j:array key="acquisition_source_display">
+                    <xsl:apply-templates select="ead3:acqinfo" mode="array-wrapped-notes"/>
+                </j:array>           
+            </j:map>
 
-            
             <!-- titles -->
             <j:array key="titles">
                 <!-- don't need all of this internal stuff since we already process the EAD, but what the hay -->
@@ -462,8 +495,7 @@
                 </xsl:choose>
             </j:array>
             
-            <!-- notes -->
-            <!-- need to add container groupings to notes -->
+            <!-- notes (plus container info, for now) -->
             <j:array key="notes">
                 
                     <xsl:apply-templates select="$container-groupings/container-group"/>
@@ -471,19 +503,17 @@
                     <xsl:apply-templates select="
                         ead3:did/ead3:abstract | 
                         ead3:did/ead3:dimensions (: add elsewhere? :) |                        
-                        ead3:did/ead3:langmaterial |  (: not sure if we want to add these as text notes or not, if we include them elsewhere? :)
+                        ead3:did/ead3:langmaterial |  (: not sure if we want to add these as text notes or not, if we include them elsewhere?.  yes, we do, since we could have something more descriptive.  :)
                         ead3:did/ead3:materialspec |
-                        ead3:did/ead3:physdesc[not(@localtype='container_summary')] (: definitely elsewhere, right? :) |
+                        ead3:did/ead3:physdesc[not(@localtype='container_summary')] (: definitely elsewhere :) |
                         ead3:did/ead3:physfacet |
                         ead3:did/ead3:physloc |
                         ead3:accruals | 
                         ead3:altformavail |
-                        ead3:acqinfo |
                         ead3:appraisal | 
                         ead3:arrangement | 
                         ead3:bibliography |
                         ead3:bioghist |
-                        ead3:custodhist | 
                         ead3:fileplan |
                         ead3:index |
                         ead3:legalstatus |
@@ -500,16 +530,15 @@
             
             <!-- languages -->
             <j:array key="languages">
+                <!-- either need a note note here, or just continue to pass the langmaterial/descriptivenote to the notes array -->
                 <xsl:apply-templates select="ead3:did/ead3:langmaterial/ead3:language" mode="languages"/>
             </j:array>
-            
-            
+                   
             <!-- agents -->
             <j:array key="agents">
                 <xsl:apply-templates select="ead3:did/ead3:origination"/>
             </j:array>
-            
-            
+                     
             <!-- places -->
             <!-- what to map here?  probably can only map our geogrpahic headings as subjects -->
             <j:array key="places">
@@ -574,26 +603,30 @@
                         <xsl:apply-templates select="ead3:did" mode="access_notes"/>
                     </j:string>
                     
-                    <j:array key="access_to_digital_assets_URI">
-                         <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][not(@show='embed')] | ead3:did/ead3:dao[@href][not(@show='embed')]"/>
-                    </j:array>
-                    
-                    <!-- can add a single thumbnail here now, but there will be issues with re-associating multiple digital objects + what happens if we can supply all of the thumbnails to LUX? -->
-                    <j:string key="access_to_primary_image_URI">
-                        <xsl:value-of select="ead3:did/ead3:daoset/ead3:dao[@href][@show='embed'][1]/@href | ead3:did/ead3:dao[@href][@show='embed'][1]/@href"/>
-                    </j:string>
                 </j:map>          
             </j:array>
             
-
             <j:array key="rights">
                 <xsl:call-template name="rights"/>
             </j:array>
             
-           
-             
+            <!-- exclude this key if there are none??? -->
+            <!-- also, this data model doesn't work very well for ASpace.  ASpace can have digital object sets, but LUX cannot.
+                i think the main use case here is digital object links, thumbnails, and outbound links to metadata (e.g. IIIF manifests).
+                propose a simplification for digital_assets in the next revision -->
+            <j:array key="digital_assets">
+                <!-- if there's a thumbnail image, let's grab that first? -->
+                <xsl:choose>
+                    <xsl:when test="ead3:did/ead3:dao[@href][@show='embed']">
+                        <xsl:apply-templates select="ead3:did/ead3:dao[@href][@show='embed'][1]"/>
+                    </xsl:when>
+                    <xsl:otherwise>
+                        <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][@show='embed'][1]"/>
+                    </xsl:otherwise>
+                </xsl:choose>
+                <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][not(@show='embed')] | ead3:did/ead3:dao[@href][not(@show='embed')]"/>
+            </j:array>
             
-
             <!-- hierarchies -->
             <j:array key="hierarchies">
                 <xsl:variable name="level-of-description">
@@ -653,65 +686,8 @@
                 </j:map>
             </j:array>
             
-            
-            <!-- supertypes -->
-            <!-- update once we know how this should be handled, and if we can add multiple supertype_level 1s -->
-            <!-- also recommend that this be remodelled, so that the hiearchy is explicit.  right now, the order matters -->
-            <j:array key="supertypes">
-                <j:map>  
-                    <j:string key="supertype">Archival and Manuscript Material</j:string>
-                    <j:string key="supertype_level">1</j:string>
-                </j:map>
-
-               
-                <!-- more level1s ??? -->
-                <!-- where would a word doc go, a floppy disc, etc.?-->
-                <!-- for now, let's just add an additional type hierarchy based on video/audio extent types -->
-
-                
-                <!-- DRY this up and move to a function or named template once we have the full set of mappings -->
-                <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'audio|phonograph', 'i')">
-                    <j:map> 
-                        <j:string key="supertype">Time-Based Media</j:string>
-                        <j:string key="supertype_level">1</j:string>
-                    </j:map>
-                    <j:map>  
-                        <j:string key="supertype">Audio</j:string>
-                        <j:string key="supertype_level">2</j:string>
-                    </j:map>
-                </xsl:if>
-                <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'video|film', 'i')">
-                    <j:map>  
-                        <j:string key="supertype">Time-Based Media</j:string>
-                        <j:string key="supertype_level">1</j:string>
-                    </j:map>
-                    <j:map>  
-                        <j:string key="supertype">Video</j:string>
-                        <j:string key="supertype_level">2</j:string>
-                    </j:map>
-                </xsl:if>
-                		
-                <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'painting', 'i')">
-                    <j:map>  
-                        <j:string key="supertype">Two-Dimensional Objects</j:string>
-                        <j:string key="supertype_level">1</j:string>
-                    </j:map>
-                    <j:map>  
-                        <j:string key="supertype">Paintings</j:string>
-                        <j:string key="supertype_level">2</j:string>
-                    </j:map>
-                </xsl:if>
-                <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'photo', 'i')">
-                    <j:map>  
-                        <j:string key="supertype">Two-Dimensional Objects</j:string>
-                        <j:string key="supertype_level">1</j:string>
-                    </j:map>
-                    <j:map>  
-                        <j:string key="supertype">Photographs</j:string>
-                        <j:string key="supertype_level">2</j:string>
-                    </j:map>
-                </xsl:if>
-            </j:array>
+            <!-- citations array would go here, but need to figure out how / if we can map this.  for Papyrus, we should have something to map,
+                but not sure if / how to use ead3:bibliography here.  need to evaluate data / ask staff -->
         </j:map>
     </xsl:template>
 
@@ -791,10 +767,11 @@
         <xsl:apply-templates select="ead3:accessrestrict | ead3:userestrict"/>        
         <xsl:if test="not(ead3:accessrestrict or ead3:userestrict)">
                 <j:map>
-                    <j:string key="rights_display"/>
-                    <j:array key="rights_notes"/>                  
-                    <j:string key="rights_type"/>
-                    <j:string key="rights_type_label"/>
+                    <j:string key="original_rights_status_display"/>
+                    <j:string key="original_rights_copyright_credit_display"/>
+                    <j:array key="original_rights_notes"/>                  
+                    <j:string key="original_rights_type"/>
+                    <j:string key="original_rights_type_label"/>
                     <xsl:call-template name="sub-rights-fields">
                         <xsl:with-param name="no-notes" select="true()"/>
                     </xsl:call-template>
@@ -804,12 +781,7 @@
     
     <xsl:template name="sub-rights-fields">
         <xsl:param name="no-notes"/>
-        <j:string key="credit_line_display"/>
-        <!-- don't think our custodhist or acqhist notes map well to something named rights.provenance.  those are being added to the notes array still for now. -->
-        <j:string key="provenance"/>
-        <!-- again, not something we currently track, so i think the best we could do for now would be a generic page for each repo?.
-                        but, if we did track it, there's a place to do that in ASpace -->
-        <j:array key="rights_URI">
+        <j:array key="original_rights_URI">
             <j:string>
                 <xsl:value-of select="if ($repo-code = 'beinecke' and (self::ead3:userestict or $no-notes)) 
                     then 'https://beinecke.library.yale.edu/research-teaching/copyright-questions' 
@@ -819,15 +791,44 @@
         </j:array>
     </xsl:template>
     
+    <xsl:template name="supertypes">
+        <j:array key="supertypes">
+            <!-- default for everything described in ASpace, for now -->
+            <j:array>  
+                <j:string>Archival and Manuscript Material</j:string>
+            </j:array>
+                          
+            <!-- DRY this up and move to a function or named template once we have the full set of mappings -->
+            <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'audio|phonograph', 'i')">
+                <j:array> 
+                    <j:string>Time-Based Media</j:string>
+                    <j:string>Audio</j:string>
+                </j:array>
+            </xsl:if>
+            <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'video|film', 'i')">
+                <j:array>  
+                    <j:string>Time-Based Media</j:string>
+                    <j:string>Video</j:string>
+                </j:array>
+            </xsl:if>       
+            <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'painting', 'i')">
+                <j:array>  
+                    <j:string>Two-Dimensional Objects</j:string>
+                    <j:string>Paintings</j:string>
+                </j:array>
+            </xsl:if>
+            <xsl:if test="some $t in ead3:did/ead3:physdescstructured/ead3:unittype satisfies matches($t, 'photo', 'i')">
+                <j:array>  
+                    <j:string>Two-Dimensional Objects</j:string>
+                    <j:string>Photographs</j:string>
+                </j:array>
+            </xsl:if>
+        </j:array>
+    </xsl:template>
+    
     <xsl:template match="ead3:accessrestrict | ead3:userestrict">
         <j:map>
-            <!-- this is a local access restriction type, not usage, but where else to map it?  
-                        also, we don't use the rights module right now, so no way to specify things like public domain, etc. -->
-            <!-- so, we'll likely need to change these mappings once we have more guidance -->
-            <!-- now that this has been changed from an array to a string, this mapping doesn't work well for ASpace
-                suggest changing it back with the next update.
-                -->
-            <j:string key="rights_display">
+            <j:string key="original_rights_status_display">
                 <!-- we can't really do anything with userestrict here, right? -->
                 <xsl:if test="self::ead3:accessrestrict">
                     <xsl:value-of select="for $t in tokenize(@localtype, ' ') 
@@ -835,32 +836,63 @@
                 </xsl:if>
             </j:string>
             
+            <j:string key="original_rights_copyright_credit_display"/>
+            
             <!-- this is difficult to untangle, since we have access vs. use notes.  will likely need to consult with staff and come up with mapping logic-->
-            <j:array key="rights_notes">
+            <j:array key="original_rights_notes">
                 <j:string>
                     <xsl:apply-templates/>
                 </j:string>
             </j:array>
             
-            <j:string key="rights_type">
+            <j:string key="original_rights_type">
                 <xsl:value-of select="if (self::ead3:accessrestrict) then 'access' else 'usage'"/>
             </j:string>
             
             <!-- more sighs -->
-            <j:string key="rights_type_label">
+            <j:string key="original_rights_type_label">
                 <xsl:value-of select="if (self::ead3:accessrestrict) then 'Access' else 'Usage'"/>
             </j:string>
             
             <xsl:call-template name="sub-rights-fields"/>
-
         </j:map>
+    </xsl:template>
+    
+    <!-- digital_assets stuff, but just for the daos that we're mapping currently -->
+    <xsl:template match="ead3:dao">
+        <j:map>
+            <!-- 
+        optional properties:  data not stored in ASpace, so not vending currently
+            asset_rights_status_display     / string
+            asset_rights_notes              / array string
+            asset_rights_type               / string
+            asset_rights_type_label         / string
+            asset_type                      / string (might be able to add this from ASpace, but folks currently don't record it)
+         -->
+            <j:array key="asset_URI">
+                <j:string>
+                    <xsl:value-of select="@href"/>
+                </j:string>
+            </j:array>
+            <xsl:if test="@show eq 'embed'">
+                <j:string key="asset_flag">
+                    <xsl:value-of select="'primary image'"/>
+                </j:string>
+            </xsl:if>
+            <xsl:if test="@linktitle">
+                <j:string key="asset_caption_display">
+                    <xsl:value-of select="@linktitle"/>
+                </j:string>
+            </xsl:if>  
+        </j:map>  
     </xsl:template>
     
     <!-- add all the notes here, aside from the ones that are mapped elsewhere -->
     <xsl:template match="ead3:*" mode="notes">
         <j:map>
             <j:string key="note_display">
-                <xsl:apply-templates/>
+                <!-- note that we are currently suppressing "ead3:head", but better to be more explicit here in the transformation.-->
+                <xsl:apply-templates select="if (local-name() = ('langmaterial')) then ead3:descriptivenote else (text() | * except ead3:head)"/>
             </j:string>
             <j:string key="note_type">
                 <xsl:value-of select="local-name()"/>
@@ -872,6 +904,13 @@
                     else ()"/>
             </j:string> 
         </j:map>
+    </xsl:template>
+    
+    <!-- just "acqinfo" and "custodhist" currently, both of which are mapped to "basic_descriptors" -->
+    <xsl:template match="ead3:*" mode="array-wrapped-notes">
+        <j:string>
+            <xsl:apply-templates select="text() | * except ead3:head"/>
+        </j:string>
     </xsl:template>
     
     <xsl:template match="ead3:language" mode="languages">
@@ -1114,7 +1153,7 @@
             <j:string key="subject_heading_sortname">
                 <xsl:value-of select="string-join(ead3:part/normalize-space(), '--')"/>
             </j:string>
-            <j:array key="subject_URI">
+            <j:array key="subject_heading_URI">
                 <j:string>
                     <xsl:value-of select="if (starts-with(@identifier, 'http')) then normalize-space(@identifier) else ''"/>
                 </j:string>
@@ -1147,8 +1186,6 @@
                     <xsl:value-of select="normalize-space(@identifier)"/>
                 </j:string>
             </j:array>
-            <!-- wont't have any of this in ASpace... thank (all the) goodness -->
-            <j:string key="facet_role_display"/>
             <j:string key="facet_role_label"/>
             <j:string key="facet_role_code"/>
             <j:array key="facet_role_URI"/>
@@ -1331,14 +1368,7 @@
                 </xsl:choose>
             </j:string>
         </j:array>
-    </xsl:template>
-    
-    <xsl:template match="ead3:dao[@href]">
-        <j:string>
-            <xsl:value-of select="@href"/>
-        </j:string>
-    </xsl:template>
-    
+    </xsl:template>  
     
     <xsl:template match="text()" mode="#all">
         <xsl:value-of select="normalize-space()"/>
