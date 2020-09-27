@@ -615,16 +615,7 @@
                 i think the main use case here is digital object links, thumbnails, and outbound links to metadata (e.g. IIIF manifests).
                 propose a simplification for digital_assets in the next revision -->
             <j:array key="digital_assets">
-                <!-- if there's a thumbnail image, let's grab that first? -->
-                <xsl:choose>
-                    <xsl:when test="ead3:did/ead3:dao[@href][@show='embed']">
-                        <xsl:apply-templates select="ead3:did/ead3:dao[@href][@show='embed'][1]"/>
-                    </xsl:when>
-                    <xsl:otherwise>
-                        <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][@show='embed'][1]"/>
-                    </xsl:otherwise>
-                </xsl:choose>
-                <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href][not(@show='embed')] | ead3:did/ead3:dao[@href][not(@show='embed')]"/>
+                <xsl:apply-templates select="ead3:did/ead3:daoset/ead3:dao[@href]| ead3:did/ead3:dao[@href]"/>
             </j:array>
             
             <!-- hierarchies -->
@@ -860,6 +851,10 @@
     
     <!-- digital_assets stuff, but just for the daos that we're mapping currently -->
     <xsl:template match="ead3:dao">
+        <xsl:variable name="primary" as="xs:boolean">
+            <xsl:value-of select="if (count(../preceding-sibling::ead3:daoset) eq 0) then true()
+                else if (parent::ead3:did and count(preceding-sibling::ead3:dao) eq 0) then true() else false()"/>
+        </xsl:variable>
         <j:map>
             <!-- 
         optional properties:  data not stored in ASpace, so not vending currently
@@ -874,7 +869,7 @@
                     <xsl:value-of select="@href"/>
                 </j:string>
             </j:array>
-            <xsl:if test="@show eq 'embed'">
+            <xsl:if test="@show eq 'embed' and $primary">
                 <j:string key="asset_flag">
                     <xsl:value-of select="'primary image'"/>
                 </j:string>
@@ -883,7 +878,10 @@
                 <j:string key="asset_caption_display">
                     <xsl:value-of select="@linktitle"/>
                 </j:string>
-            </xsl:if>  
+            </xsl:if>
+            <j:string key="asset_type">
+                <xsl:value-of select="if (@show eq 'embed') then 'thumbnail' else if (starts-with(@href, 'https://soundcloud')) then 'soundcloud' else 'digital object link'"/>
+            </j:string>
         </j:map>  
     </xsl:template>
     
