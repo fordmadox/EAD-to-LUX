@@ -61,13 +61,13 @@
         
         <xsl:variable name="date-numbers" select="for $num in tokenize($standarddate, '-') return number($num)"/>    
         <xsl:variable name="year">
-            <xsl:value-of select="format-number($date-numbers[1], '0001')"/>
+            <xsl:value-of select="format-number($date-numbers[1], '0000')"/>
         </xsl:variable>
         <xsl:variable name="month">
-            <xsl:value-of select="if ($date-numbers[2]) then format-number($date-numbers[2], '01') else '01'"/>
+            <xsl:value-of select="if ($date-numbers[2]) then format-number($date-numbers[2], '00') else '01'"/>
         </xsl:variable>
         <xsl:variable name="day">
-            <xsl:value-of select="if ($date-numbers[3]) then format-number($date-numbers[3], '01') else '01'"/>
+            <xsl:value-of select="if ($date-numbers[3]) then format-number($date-numbers[3], '00') else '01'"/>
         </xsl:variable>           
         <xsl:variable name="date-string">
             <xsl:value-of select="$year, $month, $day" separator="-"/>
