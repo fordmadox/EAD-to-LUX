@@ -7,7 +7,7 @@ from jsonschema import Draft7Validator
 from pathlib import Path
 
 # just loading this at the get go for now.
-with open('/Users/markcuster/Documents/GitYale/json-schema-validation/schema.json') as f:
+with open('https://git.yale.edu/raw/LUX/json-schema-validation/master/schema.json') as f:
     schema = json.load(f)
     v = Draft7Validator(schema)
 
