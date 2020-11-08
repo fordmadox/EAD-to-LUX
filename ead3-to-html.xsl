@@ -3,8 +3,10 @@
     xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ead3="http://ead3.archivists.org/schema/"
     xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:saxon="http://saxon.sf.net/"
     xmlns:map="http://www.w3.org/2005/xpath-functions/map"
+    xmlns:mdc="http://mdc"
     xmlns:h="http://www.w3.org/1999/xhtml"
     xmlns:j="http://www.w3.org/2005/xpath-functions" version="3.0">
+    
     
     <!-- 
         why not just convert to HTML using templates and
@@ -12,6 +14,17 @@
         serialize($converted-to-html, map{'method': 'html'})
         that should work still, perhaps?
         -->
+    
+    <xsl:key name="id" match="ead3:*" use="@id"/>
+    
+    <xsl:function name="mdc:resolve-internal-link" as="xs:string">
+        <!-- should update to look for notes vs. components, etc.
+        Aspace only supports internal links for components, though, so just starting with that for now.-->
+        <xsl:param name="target" as="node()"/>
+        <xsl:variable name="prefix" select="'aspace-archival-object-'"/>
+        <xsl:variable name="url" select="if ($target[@altrender]) then $target/tokenize(@altrender, '/')[last()] else ''"/>
+        <xsl:value-of select="if ($url) then $prefix || $url else '#' || $target"/>
+    </xsl:function>
     
     <!-- EAD stats
         
@@ -191,10 +204,12 @@
         </xsl:call-template>
     </xsl:template>
     <xsl:template match="ead3:indexentry/ead3:*[2][@target]" priority="3">
+        <!-- @target is used as a fall-back, in case there is no matching ID attribute in the file -->
+        <xsl:variable name="href-link" select="mdc:resolve-internal-link((key('id', @target), @target)[1])"/>
         <xsl:call-template name="html-ify">
             <xsl:with-param name="element-name" select="'dd'"/>
             <xsl:with-param name="nested-element" select="'a'"/>
-            <xsl:with-param name="nested-attribute-map" select="map{'href':@target}"/>
+            <xsl:with-param name="nested-attribute-map" select="map{'href': $href-link}"/>
         </xsl:call-template>
     </xsl:template>
     
@@ -435,11 +450,13 @@ valign                  40x, 2 distinct strings, leaf
         </xsl:call-template>
     </xsl:template>
     <xsl:template match="ead3:ptr[@target] | ead3:ref[@target]">
+        <!-- @target is used as a fall-back, in case there is no matching ID attribute in the file -->
+        <xsl:variable name="href-link" select="mdc:resolve-internal-link((key('id', @target), @target)[1])"/>
             <xsl:call-template name="html-ify">
                 <xsl:with-param name="element-name" select="'a'"/>
                 <xsl:with-param name="attribute-map" select="if (@linktitle) 
-                    then map{'href': '#' || @target, 'title': @linktitle}
-                    else map{'href': '#' || @target}
+                    then map{'href': $href-link, 'title': @linktitle}
+                    else map{'href': $href-link}
                     "/>
             </xsl:call-template>
     </xsl:template>

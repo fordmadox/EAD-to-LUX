@@ -7,7 +7,7 @@ from jsonschema import Draft7Validator
 from pathlib import Path
 
 # just loading this at the get go for now.
-with open('../schema.json') as f:
+with open('/Users/markcuster/Documents/GitYale/json-schema-validation/schema.json') as f:
     schema = json.load(f)
     v = Draft7Validator(schema)
 
@@ -15,13 +15,11 @@ def get_ids(jsonData):
     for id in jsonData['identifiers']:
         if id['identifier_type'] == 'ead':
             fileId = id['identifier_value']
-        if id['identifier_type'] == 'system':
-            systemId = id['identifier_value']
-    return fileId, systemId
+    return fileId
 
 def validateJson(jsonData):
     try:
-        fileId, systemId = get_ids(jsonData)
+        fileId = get_ids(jsonData)
     except Exception as err:
         print(err)
         logging.info(err)
@@ -35,7 +33,7 @@ def validateJson(jsonData):
 # to do... make logging work better.  just the error and filename should suffice.
 
 def get_started():
-    for file in Path('../ArchivesSpace-JSON-Lines-test').rglob('*.jsonl'):
+    for file in Path('../ArchivesSpace-JSON-Lines').rglob('*.jsonl'):
         print(file.name)
         with jsonlines.open(file,'r') as reader:
             for obj in reader:

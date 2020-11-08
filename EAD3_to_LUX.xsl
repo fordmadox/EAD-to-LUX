@@ -8,6 +8,9 @@
     <!-- author(s): Mark Custer... you?  and you??? anyone else who wants to help! -->
     <!-- requires XSLT 3.0 -->
     <xsl:output method="text"/>
+    
+    <xsl:strip-space elements="*"/>
+    <xsl:preserve-space elements="ead3:p"/>
 
     <xsl:include href="ead3-to-html.xsl"/>
     <xsl:include href="relators.xsl"/>
@@ -47,7 +50,7 @@
         <xsl:param name="current-container" as="node()"/>
         <xsl:variable name="parent" select="$current-container/@parent"/>
         <xsl:choose>
-            <xsl:when test="not ($parent)">
+            <xsl:when test="not($parent)">
                 <xsl:value-of select="$current-container/@id"/>
             </xsl:when>
             <xsl:otherwise>
@@ -61,13 +64,13 @@
         
         <xsl:variable name="date-numbers" select="for $num in tokenize($standarddate, '-') return number($num)"/>    
         <xsl:variable name="year">
-            <xsl:value-of select="format-number($date-numbers[1], '0000')"/>
+            <xsl:value-of select="format-number($date-numbers[1], '0001')"/>
         </xsl:variable>
         <xsl:variable name="month">
-            <xsl:value-of select="if ($date-numbers[2]) then format-number($date-numbers[2], '00') else '01'"/>
+            <xsl:value-of select="if ($date-numbers[2]) then format-number($date-numbers[2], '01') else '01'"/>
         </xsl:variable>
         <xsl:variable name="day">
-            <xsl:value-of select="if ($date-numbers[3]) then format-number($date-numbers[3], '00') else '01'"/>
+            <xsl:value-of select="if ($date-numbers[3]) then format-number($date-numbers[3], '01') else '01'"/>
         </xsl:variable>           
         <xsl:variable name="date-string">
             <xsl:value-of select="$year, $month, $day" separator="-"/>
@@ -214,11 +217,12 @@
         'uniform_title': 'title'
         }"/>
     
-    <xsl:param name="default-metadata-rights-status-display" select="'CC0 1.0 Universal (CC0 1.0) Public Domain Dedication'"/>
+    <!-- not a label, i don't think, but that's the example from the spreadsheet documentation, so i'm going with it for now... -->
+    <xsl:param name="default-metadata-rights-label" select="'CC0 1.0 Universal (CC0 1.0) Public Domain Dedication'"/>
     <xsl:param name="default-metadata-rights-URI" select="'https://creativecommons.org/publicdomain/zero/1.0/'"/>
-    <!-- but this sort of info shouldn't actually be hard-coded in the JSON files, I don't think -->
-    <xsl:param name="default-metadata-rights-type" select="'Use'"/>
-    <xsl:param name="default-metadata-rights-type-label" select="'Metadata Rights'"/>
+    
+    <xsl:variable name="repo-email" select="ead3:ead/ead3:control[1]/ead3:filedesc[1]/ead3:publicationstmt[1]/ead3:address[1]/ead3:addressline[@localtype='email']"/>
+
 
     <!-- 2) primary template section -->
     <xsl:template match="ead3:ead">
@@ -348,18 +352,17 @@
                    
              
             <j:map key="record">
-                <!-- last updated timestamp. currently the same value for an entire finding aid, but could update to include individual timestamps on components later on -->
-                <j:string key="metadata_last_modified">
+                <!-- field has been changed to the timestamp of LUX ingestion.... so, we don't know that any more.
+                    because of that, we won't vend anything here, but leaving in the "last-updated" / exported from ASpace value in as an example.
+                <j:string key="metadata_arrived_in_LUX">
                     <xsl:value-of select="$last-updated"/>
                 </j:string>
-                <j:string key="metadata_rights_status_display">
-                    <xsl:value-of select="$default-metadata-rights-status-display"/>
+                 -->
+                <j:string key="metadata_identifier">
+                    <xsl:value-of select="replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
                 </j:string>
-                <j:string key="metadata_rights_type">
-                    <xsl:value-of select="$default-metadata-rights-type"/>
-                </j:string>
-                <j:string key="metadata_rights_type_label">
-                    <xsl:value-of select="$default-metadata-rights-type-label"/>
+                <j:string key="metadata_rights_label">
+                    <xsl:value-of select="$default-metadata-rights-label"/>
                 </j:string>
                 <j:array key="metadata_rights_URI">
                     <j:string>
@@ -371,17 +374,6 @@
             <!-- identifiers -->
            <j:array key="identifiers">
                <j:map>
-                   <!-- instead of full value, prefered to have "aspace-{record-type}-{NNN}" -->
-                   <j:string key="identifier_value">
-                       <xsl:value-of select="replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
-                   </j:string>
-                   <j:string key="identifier_display"/>
-                   <j:string key="identifier_type">
-                       <xsl:text>system</xsl:text>
-                   </j:string>
-                   <j:string key="identifier_label"/>
-               </j:map>
-               <j:map>
                    <j:string key="identifier_value">
                        <xsl:choose>
                            <xsl:when test="$archdesc-level and $collection-ID">
@@ -392,11 +384,9 @@
                            </xsl:otherwise>
                        </xsl:choose>
                    </j:string>
-                   <j:string key="identifier_display"/>
                    <j:string key="identifier_type">
                        <xsl:text>ead</xsl:text>
                    </j:string>
-                   <j:string key="identifier_label"/>
                </j:map>
                <j:map>
                    <j:string key="identifier_value">
@@ -417,11 +407,9 @@
                        <j:string key="identifier_value">
                            <xsl:value-of select="ead3:did/ead3:unitid/normalize-space()"/>
                        </j:string>
-                       <j:string key="identifier_display"/>
                        <j:string key="identifier_type">
                            <xsl:value-of select="@level || ' unitid'"/>
                        </j:string>
-                       <j:string key="identifier_label"/>
                    </j:map>
                </xsl:for-each>
                <xsl:if test="$EAD-unitid != '' and not($archdesc-level)">
@@ -446,11 +434,9 @@
                        <j:string key="identifier_value">
                            <xsl:value-of select="'yul:' || $Voyager-BIB-ID"/>
                        </j:string>
-                       <j:string key="identifier_display"/>
                        <j:string key="identifier_type">
                            <xsl:text>voyager bib id</xsl:text>
                        </j:string>
-                       <j:string key="identifier_label"/>
                    </j:map>
                </xsl:if>
            </j:array>
@@ -459,11 +445,14 @@
             <!-- basic descriptors (not a grouping element) -->
             <j:map key="basic_descriptors">
                 <xsl:call-template name="supertypes"/>
+                <!--
                 <j:string key="edition_display"/>
                 <j:string key="imprint_display"/>
+                -->
                 
-                <!-- what could we map here??? -->
+                <!-- what could we map here??? 
                 <j:array key="materials_display"/>
+                -->
                 
                 <!-- used to go to notes, now mapping here since these have been untangled from rights -->
                 <j:array key="provenance_display">
@@ -482,28 +471,20 @@
             
             <!--measurements
                 what to map here?? -->
-            <j:array key="measurements">
-                <xsl:choose>
-                    <xsl:when test="ead3:did/ead3:physdescstructured">
-                        <xsl:apply-templates select="ead3:did/ead3:physdescstructured" mode="measurements"/>
-                    </xsl:when>
-                    <xsl:otherwise>
-                        <xsl:call-template name="measurements">
-                            <xsl:with-param name="values" select="'none'"/>
-                        </xsl:call-template>
-                    </xsl:otherwise>
-                </xsl:choose>
-            </j:array>
+            <!-- since this field is no longer required, i don't need to "values?" param anymore -->
+            <xsl:if test="ead3:did/ead3:physdescstructured">
+                <j:array key="measurements">
+                    <xsl:apply-templates select="ead3:did/ead3:physdescstructured" mode="measurements"/>
+                </j:array>
+            </xsl:if>
             
             <!-- notes (plus container info, for now) -->
             <j:array key="notes">
-                
                     <xsl:apply-templates select="$container-groupings/container-group"/>
-                
                     <xsl:apply-templates select="
                         ead3:did/ead3:abstract | 
                         ead3:did/ead3:dimensions (: add elsewhere? :) |                        
-                        ead3:did/ead3:langmaterial |  (: not sure if we want to add these as text notes or not, if we include them elsewhere?.  yes, we do, since we could have something more descriptive.  :)
+                        ead3:did/ead3:langmaterial[ead3:descriptivenote] |  (: language codes/values are passed to the langauges array. here, we just grab any other notes. :)
                         ead3:did/ead3:materialspec |
                         ead3:did/ead3:physdesc[not(@localtype='container_summary')] (: definitely elsewhere :) |
                         ead3:did/ead3:physfacet |
@@ -540,7 +521,8 @@
             </j:array>
                      
             <!-- places -->
-            <!-- what to map here?  probably can only map our geogrpahic headings as subjects -->
+            <!-- what to map here?  probably can only map our geogrpahic headings as subjects... and 
+                those could really be subjects and not "places", with specific roles, associated with the material
             <j:array key="places">
                 <j:map>
                     <j:string key="place_display"/>
@@ -554,6 +536,7 @@
                     <j:array key="place_coordinates_type"/>
                 </j:map>
             </j:array>
+            -->
             
             <!-- dates -->
             <j:array key="dates">
@@ -591,7 +574,14 @@
                     <xsl:call-template name="collections"/>
                     
                     <!-- could do something here about on-site vs. off-site, but need guidance on this. ditto for a lot of stuff here. -->
-                    <j:array key="access_in_repository"/>
+                    <j:array key="access_in_repository_display">
+                        <j:map>
+                            <j:string key="value">
+                                <xsl:apply-templates select="ead3:did" mode="access_notes"/>
+                            </j:string>
+                        </j:map>
+                        
+                    </j:array>
                     
                     <j:array key="access_in_repository_URI">
                         <j:string>
@@ -599,8 +589,9 @@
                         </j:string>
                     </j:array>
                     
+                    <!-- email or webpage -->
                     <j:string key="access_contact_in_repository">
-                        <xsl:apply-templates select="ead3:did" mode="access_notes"/>
+                       <xsl:value-of select="$repo-email"/>
                     </j:string>
                     
                 </j:map>          
@@ -719,35 +710,25 @@
         <!-- also need to deal with inherited titles here.  e.g. if not ead3:did/ead3:unittitle,
             specify type = 'inherited'
             and grab archival object or archdesc title -->
-        <j:map>
-            <xsl:choose>
-                <xsl:when test="not(ead3:did/ead3:unittitle[not(@audience='internal')])">
-                    <j:string key="title_display">
-                        <xsl:apply-templates select="ancestor::ead3:*[ead3:did/ead3:unittitle][1]/ead3:did/ead3:unittitle"/>
+        <xsl:variable name="inherited" select="if (not(ead3:did/ead3:unittitle[not(@audience='internal')])) then true() else false()" as="xs:boolean"/>
+        <j:map>   
+            <j:array key="title_display">
+                <j:map>
+                    <j:string key="value">
+                        <xsl:apply-templates select="if ($inherited) 
+                            then ancestor::ead3:*[ead3:did/ead3:unittitle][1]/ead3:did/ead3:unittitle
+                            else ead3:did/ead3:unittitle"/>
                         <!-- if no title, ASpace requires a date, but let's add a check regardless -->
                         <xsl:if test="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured">
                             <xsl:text>, </xsl:text> 
                         </xsl:if>
                         <xsl:apply-templates select="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured" mode="add-dates-to-title"/>
                     </j:string>
-                    <j:string key="title_type">
-                        <xsl:value-of select="'inherited'"/>
-                    </j:string>
-                </xsl:when>
-                <xsl:otherwise>
-                    <j:string key="title_display">
-                        <xsl:apply-templates select="ead3:did/ead3:unittitle"/>
-                        <xsl:if test="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured">
-                            <xsl:text>, </xsl:text> 
-                        </xsl:if>
-                        <xsl:apply-templates select="ead3:did/ead3:unitdate | ead3:did/ead3:unitdatestructured" mode="add-dates-to-title"/>
-                    </j:string>
-                    <!-- ASpace only allows one title, so we'll just call those "primary" for now. if it gets the ability to add multiple titles, then update this with a passed param -->
-                    <j:string key="title_type">
-                        <xsl:value-of select="'primary'"/>
-                    </j:string>
-                </xsl:otherwise>
-            </xsl:choose>
+                </j:map>
+            </j:array>
+            <j:string key="title_type">
+                <xsl:value-of select="if ($inherited) then 'inherited' else 'primary'"/>
+            </j:string>
             <j:string key="title_label">
                 <xsl:value-of select="'Primary'"/>
             </j:string>
@@ -756,25 +737,12 @@
     
     <xsl:template name="rights">
         <xsl:apply-templates select="ead3:accessrestrict | ead3:userestrict"/>        
-        <xsl:if test="not(ead3:accessrestrict or ead3:userestrict)">
-                <j:map>
-                    <j:string key="original_rights_status_display"/>
-                    <j:string key="original_rights_copyright_credit_display"/>
-                    <j:array key="original_rights_notes"/>                  
-                    <j:string key="original_rights_type"/>
-                    <j:string key="original_rights_type_label"/>
-                    <xsl:call-template name="sub-rights-fields">
-                        <xsl:with-param name="no-notes" select="true()"/>
-                    </xsl:call-template>
-                </j:map>
-        </xsl:if>
     </xsl:template>
     
     <xsl:template name="sub-rights-fields">
-        <xsl:param name="no-notes"/>
         <j:array key="original_rights_URI">
             <j:string>
-                <xsl:value-of select="if ($repo-code = 'beinecke' and (self::ead3:userestict or $no-notes)) 
+                <xsl:value-of select="if ($repo-code = 'beinecke' and self::ead3:userestict) 
                     then 'https://beinecke.library.yale.edu/research-teaching/copyright-questions' 
                     else ''"/>
                 <!-- follow up on this with all of the repos -->
@@ -827,7 +795,12 @@
                 </xsl:if>
             </j:string>
             
-            <j:string key="original_rights_copyright_credit_display"/>
+            <!-- woops.  shouldn't have made this required in v9 of the JSON schema. -->
+            <j:array key="original_rights_copyright_credit_display">
+                <j:map>
+                    <j:string key="value"/>
+                </j:map>
+            </j:array>
             
             <!-- this is difficult to untangle, since we have access vs. use notes.  will likely need to consult with staff and come up with mapping logic-->
             <j:array key="original_rights_notes">
@@ -875,9 +848,13 @@
                 </j:string>
             </xsl:if>
             <xsl:if test="@linktitle">
-                <j:string key="asset_caption_display">
-                    <xsl:value-of select="@linktitle"/>
-                </j:string>
+                <j:array key="asset_caption_display">
+                    <j:map>
+                        <j:string key="value">
+                            <xsl:value-of select="@linktitle"/>
+                        </j:string>
+                    </j:map>
+                </j:array>
             </xsl:if>
             <j:string key="asset_type">
                 <xsl:value-of select="if (@show eq 'embed') then 'thumbnail' else if (starts-with(@href, 'https://soundcloud')) then 'soundcloud' else 'digital object link'"/>
@@ -888,10 +865,16 @@
     <!-- add all the notes here, aside from the ones that are mapped elsewhere -->
     <xsl:template match="ead3:*" mode="notes">
         <j:map>
-            <j:string key="note_display">
-                <!-- note that we are currently suppressing "ead3:head", but better to be more explicit here in the transformation.-->
-                <xsl:apply-templates select="if (local-name() = ('langmaterial')) then ead3:descriptivenote else (text() | * except ead3:head)"/>
-            </j:string>
+            <j:array key="note_display">
+                <!-- don't have the ablity in ASpace to denote different languages and descriptions, aside from at the finding-level, so right now
+                leaving out those options and just providing the display "value".-->
+                <j:map>
+                    <j:string key="value">
+                        <!-- note that we are currently suppressing "ead3:head", but better to be more explicit here in the transformation.-->
+                        <xsl:apply-templates select="if (local-name() = ('langmaterial')) then ead3:descriptivenote else (text() | * except ead3:head)"/>
+                    </j:string>  
+                </j:map>
+            </j:array>
             <j:string key="note_type">
                 <xsl:value-of select="local-name()"/>
             </j:string>
@@ -906,9 +889,13 @@
     
     <!-- just "acqinfo" and "custodhist" currently, both of which are mapped to "basic_descriptors" -->
     <xsl:template match="ead3:*" mode="array-wrapped-notes">
-        <j:string>
-            <xsl:apply-templates select="text() | * except ead3:head"/>
-        </j:string>
+        <j:map>
+            <!-- don't have the ablity in ASpace to denote different languages and descriptions, aside from at the finding-level, so right now
+                leaving out those options and just providing the display "value".-->
+            <j:string key="value">
+                <xsl:apply-templates select="text() | * except ead3:head"/>
+            </j:string>
+        </j:map>
     </xsl:template>
     
     <xsl:template match="ead3:language" mode="languages">
@@ -925,16 +912,20 @@
                     <xsl:value-of select="if (@langcode) then 'http://id.loc.gov/vocabulary/languages/' || normalize-space(@langcode) else ''"/>
                 </j:string>
             </j:array>
-            <!-- advocate for scriptcodes, too? -->
+            <!-- advocate for scriptcodes, too, or agree to use IETF BCP 47 and add to language_code above? -->
         </j:map>
     </xsl:template>
     
     <xsl:template match="ead3:origination">
         <xsl:variable name="relator" select="*/normalize-space(@relator)"/>
         <j:map>
-            <j:string key="agent_display">
-                <xsl:apply-templates/>
-            </j:string>
+            <j:array key="agent_display">
+                <j:map>
+                    <j:string key="value">
+                        <xsl:apply-templates/>
+                    </j:string>
+                </j:map>
+            </j:array>
             <j:string key="agent_sortname">
                 <xsl:apply-templates/>
             </j:string>
@@ -1005,9 +996,6 @@
                     </xsl:choose>
                 </j:string>
             </j:array>
-            <j:array key="agent_culture_display">
-                <j:string/>
-            </j:array>
             <!-- ask if this should be a number... and whether we start at 0, 1, or whatever -->
             <j:string key="agent_sort">
                 <xsl:value-of select="position()"/>
@@ -1068,19 +1056,23 @@
        </xsl:variable>
        
        <j:map>
-           <j:string key="date_display">
-               <xsl:choose>
-                   <xsl:when test="@altrender">
-                       <xsl:value-of select="normalize-space(@altrender)"/>
-                   </xsl:when>
-                   <xsl:when test="$current-node-name eq 'unidate'">
-                       <xsl:value-of select="translate(., '-', '&#x2013;')"/>
-                   </xsl:when>
-                   <xsl:otherwise>
-                       <xsl:apply-templates/>
-                   </xsl:otherwise>
-               </xsl:choose>
-           </j:string>
+           <j:array key="date_display">
+               <j:map>
+                   <j:string key="value">
+                       <xsl:choose>
+                           <xsl:when test="@altrender">
+                               <xsl:value-of select="normalize-space(@altrender)"/>
+                           </xsl:when>
+                           <xsl:when test="$current-node-name eq 'unidate'">
+                               <xsl:value-of select="translate(., '-', '&#x2013;')"/>
+                           </xsl:when>
+                           <xsl:otherwise>
+                               <xsl:apply-templates/>
+                           </xsl:otherwise>
+                       </xsl:choose>
+                   </j:string>
+               </j:map>
+           </j:array>
            <xsl:if test="$date_earliest castable as xs:date">
                <j:string key="date_earliest">
                    <xsl:value-of select="$date_earliest"/>
@@ -1145,17 +1137,23 @@
     
     <xsl:template match="ead3:*" mode="subjects">
         <j:map>
-            <j:string key="subject_heading_display">
-                <xsl:value-of select="string-join(ead3:part/normalize-space(), '--')"/>
-            </j:string>
+            <j:array key="subject_heading_display">
+                <j:map>
+                    <j:string key="value">
+                        <xsl:value-of select="string-join(ead3:part/normalize-space(), '--')"/>
+                    </j:string>
+                </j:map>
+            </j:array>
             <j:string key="subject_heading_sortname">
                 <xsl:value-of select="string-join(ead3:part/normalize-space(), '--')"/>
             </j:string>
-            <j:array key="subject_heading_URI">
-                <j:string>
-                    <xsl:value-of select="if (starts-with(@identifier, 'http')) then normalize-space(@identifier) else ''"/>
-                </j:string>
-            </j:array>
+            <xsl:if test="starts-with(@identifier, 'http')">
+                <j:array key="subject_heading_URI">
+                    <j:string>
+                        <xsl:value-of select="normalize-space(@identifier)"/>
+                    </j:string>
+                </j:array>
+            </xsl:if>
             <j:array key="subject_facets">
                 <xsl:apply-templates select="ead3:part" mode="facets"/>
             </j:array>
@@ -1166,9 +1164,13 @@
     <xsl:template match="ead3:part" mode="facets">
         <xsl:variable name="why-facet-type-why" select="(map:get($subject-facet-types, @localtype), @localtype)[1]"/>
         <j:map>
-            <j:string key="facet_display">
-                <xsl:apply-templates/>
-            </j:string>
+            <j:array key="facet_display">
+                <j:map>
+                    <j:string key="value">
+                        <xsl:apply-templates/>
+                    </j:string>
+                </j:map>
+            </j:array>
             <j:string key="facet_type">
                 <xsl:value-of select="$why-facet-type-why"/>
             </j:string>
@@ -1178,74 +1180,58 @@
                     substring($why-facet-type-why, 2),
                     ' '[not(last())])"/>
             </j:string>
-            <!-- can't store part URIs in ASpace, but if we could, they'd show up as identifiers in EAD -->
+            <!-- can't store part URIs in ASpace, but if we could, they'd show up as identifiers in EAD 
+                to include now, we'd need to perform a metadata enrichment step during this ETL workflow
             <j:array key="facet_URI">
                 <j:string>
                     <xsl:value-of select="normalize-space(@identifier)"/>
                 </j:string>
             </j:array>
-            <j:string key="facet_role_label"/>
-            <j:string key="facet_role_code"/>
-            <j:array key="facet_role_URI"/>
-            <!-- but would be nice to have these... once we switch to a format like GeoJSON -->
-            <j:array key="facet_coordinates_display"/>
-            <j:array key="facet_coordinates_type"/>
+            -->
         </j:map>
     </xsl:template>
 
 
     <xsl:template name="measurements" match="ead3:physdescstructured" mode="measurements">
-        <!-- clean this up! -->
-        <xsl:param name="values"/>
         <xsl:variable name="duration-extent" select="if (matches(ead3:unittype, '^duration', 'i')) then 'duration' else ()"/>
-        <xsl:choose>
-            <xsl:when test="$values eq 'none'">
+        <j:map>
+            <j:string key="measurement_label">
+                <xsl:value-of select="if ($duration-extent) then 'Duration' else 'Extent'"/>
+            </j:string>
+            <j:array key="measurement_form">
                 <j:map>
-                    <j:string key="measurement_display"/>
-                    <j:string key="measurement_value"/>
-                    <j:string key="measurement_element"/>
-                    <j:string key="measurement_label"/>
-                    <j:string key="measurement_unit"/>
-                    <j:array key="measurement_unit_URI"/>
-                    <j:string key="measurement_type"/>
-                    <j:array key="measurement_type_URI"/>
+                    <j:array key="measurement_display">
+                        <j:map>
+                            <j:string key="value">
+                                <xsl:value-of select="if ($duration-extent) then mdc:convert-duration(ead3:quantity)
+                                    else (ead3:quantity || ' ' || ead3:unittype) => normalize-space()"/>
+                                <!-- keep an eye on descriptivenote.  it should wind up with paragraph tags, but who knows if that will break things here -->
+                                <xsl:apply-templates select="ead3:physfacet  | ead3:dimensions | ead3:descriptivenote"/>
+                                <!-- i should update the EAD3 exporter to put the container summary in descriptivenote.  for now, just treat it separately -->
+                                <xsl:if test="following-sibling::ead3:physdesc[1][@localtype='container_summary']">
+                                    <xsl:text> </xsl:text>
+                                    <xsl:apply-templates select="following-sibling::ead3:physdesc[1][@localtype='container_summary']"/>
+                                </xsl:if>
+                            </j:string>
+                        </j:map>
+                    </j:array>
+                    <j:array key="measurement_aspect">
+                        <j:map>
+                            <!-- consider different options based on unittype -->
+                            <j:string key="measurement_type">
+                                <xsl:value-of select="($duration-extent, 'extent')[1]"/>
+                            </j:string>
+                            <j:string key="measurement_value">
+                                <xsl:apply-templates select="ead3:quantity"/>
+                            </j:string>
+                            <j:string key="measurement_unit">
+                                <xsl:apply-templates select="ead3:unittype"/>
+                            </j:string>
+                        </j:map>
+                    </j:array>
                 </j:map>
-            </xsl:when>
-            <xsl:otherwise>
-                <j:map>
-                    <j:string key="measurement_display">
-                        <xsl:value-of select="if ($duration-extent) then mdc:convert-duration(ead3:quantity)
-                            else (ead3:quantity || ' ' || ead3:unittype) => normalize-space()"/>
-                        <!-- keep an eye on descriptivenote.  it should wind up with paragraph tags, but who knows if that will break things here -->
-                        <xsl:apply-templates select="ead3:physfacet  | ead3:dimensions | ead3:descriptivenote"/>
-                        <!-- i should update the EAD3 exporter to put the container summary in descriptivenote.  for now, just treat it separately -->
-                        <xsl:if test="following-sibling::ead3:physdesc[1][@localtype='container_summary']">
-                            <xsl:text> </xsl:text>
-                            <xsl:apply-templates select="following-sibling::ead3:physdesc[1][@localtype='container_summary']"/>
-                        </xsl:if>
-                    </j:string>
-                    <j:string key="measurement_value">
-                        <xsl:apply-templates select="ead3:quantity"/>
-                    </j:string>
-                    <!-- new field, with example values like "crate", "frame", etc. -->
-                    <j:string key="measurement_element"/>
-                    <j:string key="measurement_label">
-                        <xsl:value-of select="if ($duration-extent) then 'Duration' else 'Extent'"/>
-                    </j:string>
-                    <j:string key="measurement_unit">
-                        <xsl:apply-templates select="ead3:unittype"/>
-                    </j:string>
-                    <!-- consider mappings based on unittype -->
-                    <j:array key="measurement_unit_URI"/>
-                    <!-- consider different options based on unittype -->
-                    <j:string key="measurement_type">
-                        <xsl:value-of select="($duration-extent, 'extent')[1]"/>
-                    </j:string>
-                    <!-- me not know, but we could possibly map stuff here -->
-                    <j:array key="measurement_type_URI"/>
-                </j:map>        
-            </xsl:otherwise>
-        </xsl:choose>
+            </j:array>
+        </j:map>   
     </xsl:template>
     
     <xsl:template match="ead3:physdesc[@localtype='container_summary']">
@@ -1304,9 +1290,13 @@
         doing the latter for now -->
     <xsl:template match="container-group">
         <j:map>
-            <j:string key="note_display">
-                <xsl:apply-templates select="ead3:container"/>
-            </j:string>
+            <j:array key="note_display">
+                <j:map>
+                    <j:string key="value">
+                        <xsl:apply-templates select="ead3:container"/>   
+                    </j:string>
+                </j:map>
+            </j:array>
             <j:string key="note_type">
                 <xsl:value-of select="'container'"/>
             </j:string>
@@ -1368,9 +1358,5 @@
         </j:array>
     </xsl:template>  
     
-    <xsl:template match="text()" mode="#all">
-        <xsl:value-of select="normalize-space()"/>
-    </xsl:template>
-
 
 </xsl:stylesheet>
