@@ -220,6 +220,7 @@
     <!-- not a label, i don't think, but that's the example from the spreadsheet documentation, so i'm going with it for now... -->
     <xsl:param name="default-metadata-rights-label" select="'CC0 1.0 Universal (CC0 1.0) Public Domain Dedication'"/>
     <xsl:param name="default-metadata-rights-URI" select="'https://creativecommons.org/publicdomain/zero/1.0/'"/>
+    <xsl:param name="default-metadata-identifier-prefix" select="'aspace-'"/>
     
     <xsl:variable name="repo-email" select="ead3:ead/ead3:control[1]/ead3:filedesc[1]/ead3:publicationstmt[1]/ead3:address[1]/ead3:addressline[@localtype='email']"/>
 
@@ -359,7 +360,7 @@
                 </j:string>
                  -->
                 <j:string key="metadata_identifier">
-                    <xsl:value-of select="replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
+                    <xsl:value-of select="$default-metadata-identifier-prefix || replace($aspace-id, '^/repositories/\d*/', '') => replace('s/|_', '-')"/>
                 </j:string>
                 <j:string key="metadata_rights_label">
                     <xsl:value-of select="$default-metadata-rights-label"/>
