@@ -743,7 +743,7 @@
     <xsl:template name="sub-rights-fields">
         <j:array key="original_rights_URI">
             <j:string>
-                <xsl:value-of select="if ($repo-code = 'beinecke' and self::ead3:userestict) 
+                <xsl:value-of select="if ($repo-code = 'beinecke' and self::ead3:userestrict) 
                     then 'https://beinecke.library.yale.edu/research-teaching/copyright-questions' 
                     else ''"/>
                 <!-- follow up on this with all of the repos -->
